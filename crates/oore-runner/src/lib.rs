@@ -16,9 +16,9 @@ use anyhow::Context;
 use base64::Engine as _;
 use oore_contract::{
     AndroidSigningBuildType, BuildPlatform, BuildStatus, ClaimJobRequest, ClaimJobResponse,
-    ClaimedJob, CompleteArtifactRequest, CompleteArtifactResponse, JobStatusResponse,
-    PipelineCommandStages, PipelineEnvVar, PipelineExecutionConfig, PlatformBuildArgs,
-    PlatformBuildCommands, RUNNER_PROTOCOL_VERSION, RunnerAndroidSigningProfile,
+    ClaimedJob, CompleteArtifactRequest, CompleteArtifactResponse, IosExportMethod,
+    JobStatusResponse, PipelineCommandStages, PipelineEnvVar, PipelineExecutionConfig,
+    PlatformBuildArgs, PlatformBuildCommands, RUNNER_PROTOCOL_VERSION, RunnerAndroidSigningProfile,
     RunnerAndroidSigningResponse, RunnerIosSigningBundle, RunnerIosSigningResponse,
     RunnerJobSecretsResponse, RunnerPublishPlan, RunnerPublishResult, StepResult,
     artifact_pattern_matches, is_valid_pipeline_env_key, parse_repository_pipeline_yaml,
@@ -30,6 +30,7 @@ use sha2::{Digest, Sha256};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt};
 use zeroize::Zeroize;
 
+mod app_store_upload;
 mod publish;
 
 const AUTO_CONFIG_PATHS: [&str; 2] = [".oore.yaml", ".oore.yml"];
@@ -1693,21 +1694,26 @@ fn random_password_hex() -> String {
     hex::encode(bytes)
 }
 
-fn choose_ios_export_method(help_text: &str) -> &'static str {
-    if help_text.to_ascii_lowercase().contains("release-testing") {
-        "release-testing"
-    } else {
-        "ad-hoc"
+/// Xcode 15.3 renamed `ad-hoc` to `release-testing` and `app-store` to
+/// `app-store-connect`; older toolchains only know the original names.
+fn choose_ios_export_method(help_text: &str, export_method: IosExportMethod) -> &'static str {
+    let help_text = help_text.to_ascii_lowercase();
+    match export_method {
+        IosExportMethod::AdHoc if help_text.contains("release-testing") => "release-testing",
+        IosExportMethod::AdHoc => "ad-hoc",
+        IosExportMethod::AppStore if help_text.contains("app-store-connect") => "app-store-connect",
+        IosExportMethod::AppStore => "app-store",
     }
 }
 
-fn resolve_ios_export_method() -> String {
-    match Command::new("xcodebuild").arg("-help").output() {
+fn resolve_ios_export_method(export_method: IosExportMethod) -> String {
+    let help_text = match Command::new("xcodebuild").arg("-help").output() {
         Ok(output) if output.status.success() => {
-            choose_ios_export_method(&String::from_utf8_lossy(&output.stdout)).to_string()
+            String::from_utf8_lossy(&output.stdout).into_owned()
         }
-        _ => "ad-hoc".to_string(),
-    }
+        _ => String::new(),
+    };
+    choose_ios_export_method(&help_text, export_method).to_string()
 }
 
 fn decode_runner_b64(value: &str, field_name: &str) -> anyhow::Result<Vec<u8>> {
@@ -2033,7 +2039,7 @@ fn install_ios_signing_bundle_with_session_check(
         )?;
         let _ = fs::remove_file(signing_preflight_path);
 
-        let effective_export_method = resolve_ios_export_method();
+        let effective_export_method = resolve_ios_export_method(bundle.export_method);
         let export_options_plist_path = signing_dir.join("ExportOptions.plist");
         write_export_options_plist(
             &export_options_plist_path,
@@ -4674,6 +4680,7 @@ async fn execute_build_steps(
     let mut ios_signing_command_applied = false;
     let ios_signing_expected = ios_signing_bundle.is_some();
     let mut ios_artifact_metadata: Option<serde_json::Value> = None;
+    let mut signed_ipa_path: Option<PathBuf> = None;
     for (stage_name, commands) in [
         (
             "pre_build",
@@ -4994,6 +5001,7 @@ Install required tooling (for example Flutter/FVM) or override build commands. C
                                     ),
                                 )
                                 .await;
+                                signed_ipa_path = Some(signed_archive.ipa_path.clone());
                                 let mut p12_bytes =
                                     match decode_runner_b64(&bundle.p12_base64, "p12") {
                                         Ok(bytes) => bytes,
@@ -5247,6 +5255,118 @@ Install required tooling (for example Flutter/FVM) or override build commands. C
                 )
                 .await;
                 return (steps, Err(error.context("publish-play failed")));
+            }
+        }
+    }
+
+    if let Some(app_store) = &publish_plan.app_store {
+        let step_name = "publish-app-store";
+        let started = now_unix();
+        let _ = append_runner_log_line(
+            client,
+            daemon_url,
+            config,
+            &job.build_id,
+            log_seq,
+            "stdout",
+            &step_start_marker(step_name, "Upload the IPA to App Store Connect"),
+        )
+        .await;
+        let result = match (signed_ipa_path.as_deref(), ios_artifact_metadata.as_ref()) {
+            (Some(ipa), Some(metadata)) => {
+                let key_dir = signing_workspace.join(".oore").join("asc-keys");
+                match app_store_upload::upload_ipa(ipa, &app_store.credentials, &key_dir).await {
+                    Ok(message) => app_store_upload::publish_result(metadata, &app_store.config)
+                        .map(|result| (message, result)),
+                    Err(error) => Err(error),
+                }
+            }
+            _ => Err(anyhow::anyhow!(
+                "App Store publishing is on, but this build produced no signed App Store IPA"
+            )),
+        };
+        let finished = now_unix();
+        steps.push(StepResult {
+            name: step_name.to_string(),
+            status: if result.is_ok() {
+                "succeeded"
+            } else {
+                "failed"
+            }
+            .to_string(),
+            exit_code: Some(if result.is_ok() { 0 } else { 1 }),
+            started_at: started,
+            finished_at: finished,
+            duration_ms: (finished - started) * 1000,
+        });
+        match result {
+            Ok((message, published)) => {
+                let _ = append_runner_log_line(
+                    client,
+                    daemon_url,
+                    config,
+                    &job.build_id,
+                    log_seq,
+                    "stdout",
+                    &format!("[oore-publish] {message}"),
+                )
+                .await;
+                if let Err(error) = report_publish_result(
+                    client,
+                    daemon_url,
+                    config,
+                    &job.build_id,
+                    &job.signing_token,
+                    &published,
+                )
+                .await
+                {
+                    let _ = append_runner_log_line(
+                        client,
+                        daemon_url,
+                        config,
+                        &job.build_id,
+                        log_seq,
+                        "stderr",
+                        &format!(
+                            "[oore-publish] Uploaded, but recording the release failed: {error:#}"
+                        ),
+                    )
+                    .await;
+                }
+                let _ = append_runner_log_line(
+                    client,
+                    daemon_url,
+                    config,
+                    &job.build_id,
+                    log_seq,
+                    "stdout",
+                    &step_end_marker(step_name, "succeeded", Some(0)),
+                )
+                .await;
+            }
+            Err(error) => {
+                let _ = append_runner_log_line(
+                    client,
+                    daemon_url,
+                    config,
+                    &job.build_id,
+                    log_seq,
+                    "stderr",
+                    &format!("[oore-publish] {error:#}"),
+                )
+                .await;
+                let _ = append_runner_log_line(
+                    client,
+                    daemon_url,
+                    config,
+                    &job.build_id,
+                    log_seq,
+                    "stdout",
+                    &step_end_marker(step_name, "failed", Some(1)),
+                )
+                .await;
+                return (steps, Err(error.context("publish-app-store failed")));
             }
         }
     }
@@ -5988,8 +6108,30 @@ async fn run_and_stream(
 
 #[cfg(test)]
 mod tests {
-    use super::{load_ui_execution_config, pubspec_version_name};
+    use super::{choose_ios_export_method, load_ui_execution_config, pubspec_version_name};
+    use oore_contract::IosExportMethod;
     use serde_json::json;
+
+    #[test]
+    fn export_method_follows_pipeline_and_xcode_naming() {
+        let current = "-exportArchive ... release-testing, app-store-connect, debugging";
+        assert_eq!(
+            choose_ios_export_method(current, IosExportMethod::AdHoc),
+            "release-testing"
+        );
+        assert_eq!(
+            choose_ios_export_method(current, IosExportMethod::AppStore),
+            "app-store-connect"
+        );
+        assert_eq!(
+            choose_ios_export_method("", IosExportMethod::AdHoc),
+            "ad-hoc"
+        );
+        assert_eq!(
+            choose_ios_export_method("", IosExportMethod::AppStore),
+            "app-store"
+        );
+    }
 
     #[test]
     fn pubspec_version_name_drops_build_number() {

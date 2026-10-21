@@ -37,6 +37,7 @@ mod caches;
 mod metrics;
 mod publish;
 mod tart;
+mod test_reports;
 
 const AUTO_CONFIG_PATHS: [&str; 2] = [".oore.yaml", ".oore.yml"];
 const OORE_ANDROID_KEYSTORE_PATH_ENV: &str = "OORE_ANDROID_KEYSTORE_PATH";
@@ -4947,6 +4948,28 @@ async fn execute_build_steps(
         }
     };
 
+    // Inside the workspace so a VM build sees it through the workspace share.
+    let test_reports_dir = workspace.join(test_reports::TEST_REPORTS_SUBDIR);
+    if let Err(error) = fs::create_dir_all(&test_reports_dir) {
+        return (
+            steps,
+            Err(anyhow::anyhow!(
+                "Failed to create the test reports directory: {error}"
+            )),
+        );
+    }
+    let guest_workspace = vm.as_ref().map(|vm| PathBuf::from(vm.vm.guest_workspace()));
+    let step_test_reports_dir = guest_workspace
+        .as_deref()
+        .unwrap_or(&workspace)
+        .join(test_reports::TEST_REPORTS_SUBDIR);
+    step_env.push((
+        test_reports::TEST_REPORTS_DIR_ENV.to_string(),
+        step_test_reports_dir.display().to_string(),
+    ));
+    let mut report_path_prefixes = vec![workspace.clone()];
+    report_path_prefixes.extend(guest_workspace);
+
     let mut ios_signing_command_applied = false;
     let ios_signing_expected = ios_signing_bundle.is_some();
     let mut ios_artifact_metadata: Option<serde_json::Value> = None;
@@ -4981,6 +5004,10 @@ async fn execute_build_steps(
                 Err(e) => return (steps, Err(e)),
             };
             ios_signing_command_applied |= command_applied;
+            let normalized_command = test_reports::with_test_file_reporter(
+                &normalized_command,
+                &step_test_reports_dir.join(format!("{step_name}.json")),
+            );
             let command_preview = render_command_preview(&normalized_command, &step_env);
 
             let _ = append_runner_log_line(
@@ -5076,6 +5103,17 @@ async fn execute_build_steps(
                 }
                 Some(status) => {
                     let exit_code = status.code().unwrap_or(-1);
+                    report_step_tests(
+                        client,
+                        daemon_url,
+                        config,
+                        &job.build_id,
+                        log_seq,
+                        &test_reports_dir,
+                        &report_path_prefixes,
+                        &step_name,
+                    )
+                    .await;
                     steps.push(StepResult {
                         name: step_name,
                         status: if exit_code == 0 {
@@ -5970,6 +6008,71 @@ async fn report_publish_result(
         anyhow::bail!("publish result report failed: {}", resp.status());
     }
     Ok(())
+}
+
+/// Parse the reports a step wrote and send them to the daemon. Test reporting
+/// never fails the build; problems are logged instead.
+#[allow(clippy::too_many_arguments)]
+async fn report_step_tests(
+    client: &reqwest::Client,
+    daemon_url: &str,
+    config: &RunnerConfig,
+    build_id: &str,
+    log_seq: &mut BuildLogCursor,
+    reports_dir: &Path,
+    workspaces: &[PathBuf],
+    step_name: &str,
+) {
+    let Some(mut report) = test_reports::collect_test_reports(reports_dir, workspaces, step_name)
+    else {
+        return;
+    };
+    for failure in &mut report.failures {
+        failure.message = failure.message.as_deref().map(|m| log_seq.masker.mask(m));
+        failure.stack_trace = failure
+            .stack_trace
+            .as_deref()
+            .map(|s| log_seq.masker.mask(s));
+    }
+    let _ = append_runner_log_line(
+        client,
+        daemon_url,
+        config,
+        build_id,
+        log_seq,
+        "stdout",
+        &test_reports::summary_line(&report),
+    )
+    .await;
+    let result = client
+        .post(format!(
+            "{}/v1/runners/{}/jobs/{}/test-results",
+            daemon_url, config.runner_id, build_id
+        ))
+        .bearer_auth(&config.runner_token)
+        .json(&report)
+        .send()
+        .await
+        .map_err(anyhow::Error::from)
+        .and_then(|resp| {
+            if resp.status().is_success() {
+                Ok(())
+            } else {
+                Err(anyhow::anyhow!("{}", resp.status()))
+            }
+        });
+    if let Err(error) = result {
+        let _ = append_runner_log_line(
+            client,
+            daemon_url,
+            config,
+            build_id,
+            log_seq,
+            "stderr",
+            &format!("[oore-tests] Could not upload test results: {error}"),
+        )
+        .await;
+    }
 }
 
 fn step_start_marker(name: &str, command: &str) -> String {

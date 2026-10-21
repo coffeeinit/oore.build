@@ -163,6 +163,7 @@ Each image carries exactly one Flutter SDK.
      `android_packages` in `oore.image.yaml`.
 
    The `vm-start` step lists what it restored.
+
 4. Every pipeline step runs in the guest through `tart exec`, with the same
    environment and secrets as a host build. Secrets travel over the guest
    agent's channel and are never written to the shared workspace. After each

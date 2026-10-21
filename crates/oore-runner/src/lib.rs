@@ -5220,14 +5220,19 @@ async fn execute_build_steps(
                     caches
                         .mounts()
                         .into_iter()
-                        // DerivedData stays on the guest disk: Xcode's build
-                        // database is SQLite, which needs file locking the
-                        // virtiofs share does not provide.
-                        .filter(|mount| mount.env.is_some())
                         .map(|mount| tart::HostShare {
                             name: mount.name,
                             env: mount.env,
-                            host_dir: mount.host_dir,
+                            // Every VM build runs from the same guest path, so
+                            // Xcode names DerivedData the same for every
+                            // project; keep one saved copy per project.
+                            host_dir: if mount.name == "derived-data" {
+                                mount.host_dir.join(hex::encode(
+                                    &Sha256::digest(job.project_id.as_bytes())[..16],
+                                ))
+                            } else {
+                                mount.host_dir
+                            },
                         })
                         .collect::<Vec<_>>()
                 })
@@ -6265,6 +6270,18 @@ async fn start_build_vm(
         ),
     )
     .await;
+    for line in vm.cache_notes() {
+        let _ = append_runner_log_line(
+            client,
+            daemon_url,
+            config,
+            &job.build_id,
+            log_seq,
+            "stdout",
+            line,
+        )
+        .await;
+    }
     Ok(BuildVm { vm, _slot: slot })
 }
 

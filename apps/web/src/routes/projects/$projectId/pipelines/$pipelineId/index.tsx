@@ -489,7 +489,7 @@ function PipelineDetailPage() {
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         title="Delete pipeline?"
-        description={`This will permanently delete "${pipeline.name}". This action cannot be undone.`}
+        description={`This permanently deletes "${pipeline.name}" with its build history, schedules, signing files, secrets and publishing settings. It cannot be undone.`}
         confirmLabel="Delete pipeline"
         confirmVariant="destructive"
         isPending={deleteMutation.isPending}

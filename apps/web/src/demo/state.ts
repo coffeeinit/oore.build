@@ -6,17 +6,17 @@ import type {
   Build,
   BuildEvent,
   BuildLogChunk,
+  BuildTestResultsResponse,
   ExternalAccessNetworkSettings,
   InstancePreferences,
-  Integration,
   IntegrationInstallation,
   IntegrationRepository,
-  NotificationChannel,
   NotificationDelivery,
   Pipeline,
   ProjectRetentionOverride,
   RetentionCleanupSummary,
   RetentionPolicy,
+  ReleaseHistoryEntry,
   RepositoryWorkflowPreview,
   Runner,
   SetupStatus,
@@ -24,11 +24,14 @@ import type {
   User,
   UserRole,
 } from '@oore/client/models'
+import type { IntegrationWithStatus } from '@/lib/integration-status'
+import type { NotificationChannel } from '@/lib/notification-channels'
 import type { JsonObject } from '@/lib/types'
 import type { Project, ProjectRole } from '@oore/client/models'
 import { demoArtifacts } from './data/artifacts'
 import { demoAuditLogs } from './data/audit-logs'
 import { demoBuildLogs } from './data/build-logs'
+import { demoBuildTests } from './data/build-tests'
 import { demoBuildEvents, demoBuilds } from './data/builds'
 import {
   demoInstallations,
@@ -40,6 +43,11 @@ import {
   demoNotificationDeliveries,
 } from './data/notification-channels'
 import { demoPipelines } from './data/pipelines'
+import {
+  demoReleaseHistory,
+  demoReleases,
+  type DemoRelease,
+} from './data/releases'
 import {
   demoProjects,
   GITHUB_DEMO_AVATAR_URL,
@@ -100,9 +108,12 @@ interface DemoState {
   builds: Array<Build>
   buildEvents: Partial<Record<string, Array<BuildEvent>>>
   buildLogs: Partial<Record<string, Array<BuildLogChunk>>>
+  buildTests: Partial<Record<string, BuildTestResultsResponse>>
   artifacts: Partial<Record<string, Array<Artifact>>>
+  releases: Array<DemoRelease>
+  releaseHistory: Partial<Record<string, Array<ReleaseHistoryEntry>>>
   runners: Array<Runner>
-  integrations: Array<Integration>
+  integrations: Array<IntegrationWithStatus>
   installations: Partial<Record<string, Array<IntegrationInstallation>>>
   repositories: Partial<Record<string, Array<IntegrationRepository>>>
   notificationChannels: Array<NotificationChannel>
@@ -290,6 +301,8 @@ function makeDeveloperPipeline(): Pipeline {
     },
     trigger_config: { events: ['push'], branches: ['main'] },
     concurrency: { cancel_previous: true, max_concurrent: 1 },
+    timeout_minutes: 60,
+    approval: { required: false, events: [] },
     enabled: true,
     created_at: ago(86400 * 10),
     updated_at: ago(3600 * 4),
@@ -325,6 +338,8 @@ function makePaginatedPipelines(): Array<Pipeline> {
         },
         trigger_config: { events: ['push'], branches: ['main'] },
         concurrency: { cancel_previous: true, max_concurrent: 1 },
+        timeout_minutes: 60,
+        approval: { required: false, events: [] },
         enabled: true,
         created_at: ago(86400 * (30 - sequence)),
         updated_at: ago(3600 * (30 - sequence)),
@@ -522,6 +537,18 @@ export function createDemoState(
       name: 'mac-studio-busy',
       status: 'busy',
       capabilities: { os: 'macOS', arch: 'arm64', xcode: '15.4' },
+      labels: ['arm64', 'macos', 'macos-14', 'xcode-15'],
+      custom_labels: [],
+      metrics: {
+        cpu_percent: 97,
+        memory_used_bytes: 27 * 1024 ** 3,
+        memory_total_bytes: 32 * 1024 ** 3,
+        disk_free_bytes: 14 * 1024 ** 3,
+        disk_total_bytes: 494 * 1024 ** 3,
+        cache_bytes: 61 * 1024 ** 3,
+        collected_at: ago(8),
+      },
+      disk_pressure: 'warning',
       last_heartbeat_at: ago(8),
       registered_by: USER_IDS.admin,
       created_at: ago(86400 * 30),
@@ -532,6 +559,17 @@ export function createDemoState(
       name: 'mac-mini-draining',
       status: 'draining',
       capabilities: { os: 'macOS', arch: 'arm64', xcode: '15.4' },
+      labels: ['arm64', 'macos', 'macos-14', 'xcode-15'],
+      custom_labels: [],
+      metrics: {
+        cpu_percent: 12,
+        memory_used_bytes: 6 * 1024 ** 3,
+        memory_total_bytes: 16 * 1024 ** 3,
+        disk_free_bytes: 188 * 1024 ** 3,
+        disk_total_bytes: 494 * 1024 ** 3,
+        cache_bytes: 44 * 1024 ** 3,
+        collected_at: ago(20),
+      },
       last_heartbeat_at: ago(20),
       registered_by: USER_IDS.owner,
       created_at: ago(86400 * 25),
@@ -615,6 +653,7 @@ export function createDemoState(
               build: [],
               post_build: [],
             },
+            isolation: 'host',
             platform_build_args: { android: [], ios: [], macos: [] },
             platform_commands: {},
             env_keys: [],
@@ -633,7 +672,10 @@ export function createDemoState(
     },
     builds,
     buildEvents: clone(demoBuildEvents),
+    releases: clone(demoReleases),
+    releaseHistory: clone(demoReleaseHistory),
     buildLogs: clone(demoBuildLogs),
+    buildTests: clone(demoBuildTests),
     artifacts,
     runners,
     integrations: clone(demoIntegrations),
@@ -695,7 +737,11 @@ export function createDemoState(
     const gitlab = state.integrations.find(
       (integration) => integration.id === INTEGRATION_IDS.gitlab,
     )
-    if (gitlab) gitlab.status = 'error'
+    if (gitlab) {
+      gitlab.status = 'error'
+      gitlab.status_reason = 'rejected'
+      gitlab.status_checked_at = Math.floor(Date.now() / 1000) - 600
+    }
     for (const runner of state.runners) {
       runner.status =
         runner.id === RUNNER_IDS.macStudio ? 'draining' : 'offline'
@@ -714,7 +760,10 @@ export function createDemoState(
     state.builds = []
     state.buildEvents = {}
     state.buildLogs = {}
+    state.buildTests = {}
     state.artifacts = {}
+    state.releases = []
+    state.releaseHistory = {}
     state.runners = []
     state.integrations = []
     state.installations = {}

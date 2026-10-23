@@ -541,6 +541,262 @@
         ]
       }
     },
+    "/v1/app-store-connect-keys": {
+      "get": {
+        "tags": [
+          "Store Credentials"
+        ],
+        "summary": "List shared App Store Connect keys",
+        "description": "Returns key names, IDs and how many pipelines use each. Private keys are never returned. Requires pipeline read access.",
+        "operationId": "list_app_store_connect_keys",
+        "responses": {
+          "200": {
+            "description": "Shared keys",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListAppStoreConnectKeysResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Store Credentials"
+        ],
+        "summary": "Create shared App Store Connect key",
+        "description": "Stores the `.p8` private key encrypted. Requires instance settings write access.",
+        "operationId": "create_app_store_connect_key",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAppStoreConnectKeyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Key created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppStoreConnectKeyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid name, ID or private key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A key with this name already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/v1/app-store-connect-keys/{id}": {
+      "put": {
+        "tags": [
+          "Store Credentials"
+        ],
+        "summary": "Update shared App Store Connect key",
+        "description": "Renames or replaces the key. Pipelines using it pick up the change on their next build. Requires instance settings write access.",
+        "operationId": "update_app_store_connect_key",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Shared key ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAppStoreConnectKeyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Key updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppStoreConnectKeyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid name, ID or private key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Key not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A key with this name already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Store Credentials"
+        ],
+        "summary": "Delete shared App Store Connect key",
+        "description": "Refused while any pipeline uses the key. Requires instance settings write access.",
+        "operationId": "delete_app_store_connect_key",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Shared key ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Key deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Key not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Pipelines still use this key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/v1/artifact-tokens/{token_id}": {
       "delete": {
         "tags": [
@@ -1588,7 +1844,7 @@
           "Builds"
         ],
         "summary": "List builds",
-        "description": "Returns builds, optionally filtered by project, pipeline, or status.",
+        "description": "Returns builds, optionally filtered by project, pipeline, status, or branch, or searched with `q`.",
         "operationId": "list_builds",
         "parameters": [
           {
@@ -1633,6 +1889,24 @@
             "name": "status",
             "in": "query",
             "description": "Filter by one status or up to 9 comma-separated statuses",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "description": "Filter by exact branch name",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Search builds, case-insensitively, by build number (with or without #), part of the branch, the start of the commit SHA, or part of the pipeline or project name. At most 200 characters.",
             "required": false,
             "schema": {
               "type": "string"
@@ -1686,6 +1960,74 @@
         ]
       }
     },
+    "/v1/builds/insights": {
+      "get": {
+        "tags": [
+          "Builds"
+        ],
+        "summary": "Get build insights",
+        "description": "Success rate, run time, queue wait, a daily trend, per-project health\nand the most-failing pipelines for builds the caller can see.",
+        "operationId": "get_build_insights",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "description": "Window length in days: 7 (default), 14, 30 or 90",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "project_id",
+            "in": "query",
+            "description": "Limit to one project",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "utc_offset_minutes",
+            "in": "query",
+            "description": "Caller's UTC offset for daily buckets, -720 to 840 (default 0)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Build insights",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuildInsightsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/v1/builds/{build_id}": {
       "get": {
         "tags": [
@@ -1717,6 +2059,85 @@
           },
           "404": {
             "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/v1/builds/{build_id}/approve": {
+      "post": {
+        "tags": [
+          "Builds"
+        ],
+        "summary": "Approve build",
+        "description": "Releases a build that is waiting for approval to the runner queue.\nRequires the project maintainer role.",
+        "operationId": "approve_build",
+        "parameters": [
+          {
+            "name": "build_id",
+            "in": "path",
+            "description": "Build ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Optional note for the audit log",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BuildApprovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Build approved and queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuildApprovalResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a project maintainer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Build is not waiting for approval",
             "content": {
               "application/json": {
                 "schema": {
@@ -1944,6 +2365,85 @@
         ]
       }
     },
+    "/v1/builds/{build_id}/reject": {
+      "post": {
+        "tags": [
+          "Builds"
+        ],
+        "summary": "Reject build",
+        "description": "Cancels a build that is waiting for approval. Requires the project\nmaintainer role.",
+        "operationId": "reject_build",
+        "parameters": [
+          {
+            "name": "build_id",
+            "in": "path",
+            "description": "Build ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Optional reason, shown on the build",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BuildApprovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Build rejected and canceled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuildApprovalResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a project maintainer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Build is not waiting for approval",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/v1/builds/{build_id}/rerun": {
       "post": {
         "tags": [
@@ -2002,6 +2502,94 @@
         ]
       }
     },
+    "/v1/builds/{build_id}/retry-step": {
+      "post": {
+        "tags": [
+          "Builds"
+        ],
+        "summary": "Retry a build step",
+        "description": "Queues a new build that runs one store upload of a finished build again,\nplus any later upload that has not succeeded, with the artifacts the\nbuild already stored. Only steps listed in the build's\n`retryable_steps` can be retried; other steps need a full re-run.",
+        "operationId": "retry_build_step",
+        "parameters": [
+          {
+            "name": "build_id",
+            "in": "path",
+            "description": "Build whose step to retry",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetryBuildStepRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Retry build queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RerunBuildResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The step can never be retried on its own",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Build not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The build is still running, or this step cannot be retried for it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/v1/builds/{build_id}/stream-token": {
       "post": {
         "tags": [
@@ -2028,6 +2616,122 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StreamTokenResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/v1/builds/{build_id}/tests": {
+      "get": {
+        "tags": [
+          "Builds"
+        ],
+        "summary": "Get build test results",
+        "description": "Returns the test summary and failed tests of a build. Each failure\ncarries its outcome in recent test-reporting builds of the same\npipeline and whether it looks flaky.",
+        "operationId": "get_build_test_results",
+        "parameters": [
+          {
+            "name": "build_id",
+            "in": "path",
+            "description": "Build ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Test results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuildTestResultsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Build not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/v1/events": {
+      "get": {
+        "tags": [
+          "Events"
+        ],
+        "summary": "Stream live events (SSE)",
+        "description": "Server-sent event stream of build, runner and release changes, so\nclients can refresh without polling. Every connection starts with a\n`ready` event (`EventStreamReady`). Then: `build` (`BuildChangedEvent`),\n`release` (`ReleaseChangedEvent`), `runner` (`RunnerChangedEvent`, only\nfor users who can read runners), `resync` (`EventStreamResync`, events\nwere dropped and clients should refetch) and `done` (the stream ends,\ndata is the reason). Build and release events are limited to projects\nthe caller can read. Events are not replayed, so a client that\nreconnects should refetch once on `ready`. Comment keepalives are sent\nevery 15 seconds.",
+        "operationId": "stream_events",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "description": "Only send build and release events for this project",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE event stream",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No read access to the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many open event streams",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
@@ -3972,6 +4676,605 @@
         ]
       }
     },
+    "/v1/pipelines/{pipeline_id}/publish/app-store": {
+      "get": {
+        "tags": [
+          "Pipelines"
+        ],
+        "summary": "Get App Store publish settings",
+        "operationId": "get_pipeline_app_store_publish",
+        "parameters": [
+          {
+            "name": "pipeline_id",
+            "in": "path",
+            "description": "Pipeline ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "App Store publish settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineAppStorePublishResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Pipelines"
+        ],
+        "summary": "Update App Store publish settings",
+        "description": "Publishing uploads the pipeline's App Store IPA to App Store Connect with\nthe API key from iOS signing, then sends it to TestFlight groups or an\nApp Store version. Enabling it requires iOS signing with the `app_store`\nexport method and an App Store Connect API key.",
+        "operationId": "update_pipeline_app_store_publish",
+        "parameters": [
+          {
+            "name": "pipeline_id",
+            "in": "path",
+            "description": "Pipeline ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppStorePublishConfig"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "App Store publish settings updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineAppStorePublishResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/v1/pipelines/{pipeline_id}/publish/google-play": {
+      "get": {
+        "tags": [
+          "Pipeline Publishing"
+        ],
+        "summary": "Get Google Play publish settings",
+        "description": "Requires project read access. Also reports whether the referenced\nservice account secret exists in a visible scope.",
+        "operationId": "get_pipeline_google_play_publish",
+        "parameters": [
+          {
+            "name": "pipeline_id",
+            "in": "path",
+            "description": "Pipeline ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Google Play publish settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineGooglePlayPublishResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Pipeline Publishing"
+        ],
+        "summary": "Update Google Play publish settings",
+        "description": "Requires the manage pipelines project permission. The service account\nJSON is stored separately as a secret and referenced by name.",
+        "operationId": "update_pipeline_google_play_publish",
+        "parameters": [
+          {
+            "name": "pipeline_id",
+            "in": "path",
+            "description": "Pipeline ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GooglePlayPublishConfig"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Saved settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineGooglePlayPublishResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/v1/pipelines/{pipeline_id}/publish/google-play/test-credentials": {
+      "post": {
+        "tags": [
+          "Pipeline Publishing"
+        ],
+        "summary": "Test Google Play credentials",
+        "description": "Requires the manage pipelines project permission. Exchanges the named\nservice account key for a token, then opens and discards a Play edit\nfor the app, so nothing changes in Play Console. A rejected key or\nmissing Play Console access is reported with `ok: false`.",
+        "operationId": "test_pipeline_google_play_credentials",
+        "parameters": [
+          {
+            "name": "pipeline_id",
+            "in": "path",
+            "description": "Pipeline ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GooglePlayCredentialsTestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Check result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GooglePlayCredentialsTestResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/v1/pipelines/{pipeline_id}/secrets": {
+      "get": {
+        "tags": [
+          "Secrets"
+        ],
+        "summary": "List pipeline secrets",
+        "description": "Returns secret names and timestamps. Values are never returned. Requires project read access.",
+        "operationId": "list_pipeline_secrets",
+        "parameters": [
+          {
+            "name": "pipeline_id",
+            "in": "path",
+            "description": "Pipeline ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Secret names",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListSecretsResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Secrets"
+        ],
+        "summary": "Create pipeline secret",
+        "description": "Stores an encrypted value. The response never contains it. Requires the manage pipelines project permission.",
+        "operationId": "create_pipeline_secret",
+        "parameters": [
+          {
+            "name": "pipeline_id",
+            "in": "path",
+            "description": "Pipeline ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSecretRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Secret created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid name or value",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A secret with this name already exists in this scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/v1/pipelines/{pipeline_id}/secrets/{name}": {
+      "put": {
+        "tags": [
+          "Secrets"
+        ],
+        "summary": "Rotate pipeline secret",
+        "description": "Replaces the stored value. Requires the manage pipelines project permission.",
+        "operationId": "rotate_pipeline_secret",
+        "parameters": [
+          {
+            "name": "pipeline_id",
+            "in": "path",
+            "description": "Pipeline ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Secret name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RotateSecretRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Secret rotated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Secret not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Secrets"
+        ],
+        "summary": "Delete pipeline secret",
+        "operationId": "delete_pipeline_secret",
+        "parameters": [
+          {
+            "name": "pipeline_id",
+            "in": "path",
+            "description": "Pipeline ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Secret name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "description": "Delete even when Google Play publishing uses the secret",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Secret deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Secret not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A pipeline uses the secret as its Google Play service account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/v1/projects": {
       "get": {
         "tags": [
@@ -4385,7 +5688,7 @@
             }
           },
           "409": {
-            "description": "Project source is not configured or resolvable",
+            "description": "Project source is not configured or resolvable, or the Google Play service account secret is missing",
             "content": {
               "application/json": {
                 "schema": {
@@ -5147,6 +6450,290 @@
         ]
       }
     },
+    "/v1/projects/{project_id}/secrets": {
+      "get": {
+        "tags": [
+          "Secrets"
+        ],
+        "summary": "List project secrets",
+        "description": "Returns secret names and timestamps. Values are never returned. Requires project read access.",
+        "operationId": "list_project_secrets",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Secret names",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListSecretsResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Secrets"
+        ],
+        "summary": "Create project secret",
+        "description": "Stores an encrypted value. The response never contains it. Requires the manage pipelines project permission.",
+        "operationId": "create_project_secret",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSecretRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Secret created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid name or value",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A secret with this name already exists in this scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/v1/projects/{project_id}/secrets/{name}": {
+      "put": {
+        "tags": [
+          "Secrets"
+        ],
+        "summary": "Rotate project secret",
+        "description": "Replaces the stored value. Requires the manage pipelines project permission.",
+        "operationId": "rotate_project_secret",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Secret name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RotateSecretRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Secret rotated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Secret not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Secrets"
+        ],
+        "summary": "Delete project secret",
+        "operationId": "delete_project_secret",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Secret name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "description": "Delete even when Google Play publishing uses the secret",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Secret deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Secret not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A pipeline uses the secret as its Google Play service account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/v1/public/setup-status": {
       "get": {
         "tags": [
@@ -5177,6 +6764,903 @@
             }
           }
         }
+      }
+    },
+    "/v1/release-events": {
+      "get": {
+        "tags": [
+          "Releases"
+        ],
+        "summary": "List release events",
+        "description": "Recent release history entries across projects the caller can read, newest first.",
+        "operationId": "list_release_events",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "description": "Filter by project",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, 1 to 200 (default 50)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Release activity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListReleaseActivityResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/v1/releases": {
+      "get": {
+        "tags": [
+          "Releases"
+        ],
+        "summary": "List releases",
+        "description": "Releases in projects the caller can read, newest first.",
+        "operationId": "list_releases",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "description": "Filter by project",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "build_id",
+            "in": "query",
+            "description": "Filter by build",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "description": "Filter by one state or comma-separated states",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, 1 to 200 (default 50)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Page offset (default 0)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Release list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListReleasesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Releases"
+        ],
+        "summary": "Create release",
+        "description": "Records a release for a succeeded build. Requires the project maintainer role.",
+        "operationId": "create_release",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReleaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Created release",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Release"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Build not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Build has not succeeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/v1/releases/{release_id}": {
+      "get": {
+        "tags": [
+          "Releases"
+        ],
+        "summary": "Get release",
+        "description": "Release detail with its full state history, oldest first.",
+        "operationId": "get_release",
+        "parameters": [
+          {
+            "name": "release_id",
+            "in": "path",
+            "description": "Release ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Release detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseDetailResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/v1/releases/{release_id}/approve": {
+      "post": {
+        "tags": [
+          "Releases"
+        ],
+        "summary": "Approve release",
+        "description": "Records the maintainer approval required by the release policy. Writes history, an audit log entry, and a release event.",
+        "operationId": "approve_release",
+        "parameters": [
+          {
+            "name": "release_id",
+            "in": "path",
+            "description": "Release ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Optional reason; `fraction` is accepted by raise only",
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ReleaseActionRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated release",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Release"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not allowed in the current state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The store rejected the change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/v1/releases/{release_id}/complete": {
+      "post": {
+        "tags": [
+          "Releases"
+        ],
+        "summary": "Complete rollout",
+        "description": "Rolls out to 100%. Requires maintainer. Writes history, an audit log entry, and a release event.",
+        "operationId": "complete_release",
+        "parameters": [
+          {
+            "name": "release_id",
+            "in": "path",
+            "description": "Release ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Optional reason; `fraction` is accepted by raise only",
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ReleaseActionRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated release",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Release"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not allowed in the current state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The store rejected the change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/v1/releases/{release_id}/halt": {
+      "post": {
+        "tags": [
+          "Releases"
+        ],
+        "summary": "Halt rollout",
+        "description": "Halts the rollout at the store. A halted release never advances until resumed. Requires developer or maintainer. Writes history, an audit log entry, and a release event.",
+        "operationId": "halt_release",
+        "parameters": [
+          {
+            "name": "release_id",
+            "in": "path",
+            "description": "Release ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Optional reason; `fraction` is accepted by raise only",
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ReleaseActionRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated release",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Release"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not allowed in the current state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The store rejected the change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/v1/releases/{release_id}/pause": {
+      "post": {
+        "tags": [
+          "Releases"
+        ],
+        "summary": "Pause rollout",
+        "description": "Stops scheduled steps. Requires developer or maintainer. Writes history, an audit log entry, and a release event.",
+        "operationId": "pause_release",
+        "parameters": [
+          {
+            "name": "release_id",
+            "in": "path",
+            "description": "Release ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Optional reason; `fraction` is accepted by raise only",
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ReleaseActionRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated release",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Release"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not allowed in the current state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The store rejected the change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/v1/releases/{release_id}/raise": {
+      "post": {
+        "tags": [
+          "Releases"
+        ],
+        "summary": "Raise rollout",
+        "description": "Raises the rollout to `fraction`, or to the next policy step. Raising to 1 completes the release. Requires maintainer. Writes history, an audit log entry, and a release event.",
+        "operationId": "raise_release",
+        "parameters": [
+          {
+            "name": "release_id",
+            "in": "path",
+            "description": "Release ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Optional reason; `fraction` is accepted by raise only",
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ReleaseActionRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated release",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Release"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not allowed in the current state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The store rejected the change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/v1/releases/{release_id}/resume": {
+      "post": {
+        "tags": [
+          "Releases"
+        ],
+        "summary": "Resume rollout",
+        "description": "Resumes a paused or halted release; the next step is one interval away. Requires maintainer. Writes history, an audit log entry, and a release event.",
+        "operationId": "resume_release",
+        "parameters": [
+          {
+            "name": "release_id",
+            "in": "path",
+            "description": "Release ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Optional reason; `fraction` is accepted by raise only",
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ReleaseActionRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated release",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Release"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not allowed in the current state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The store rejected the change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
       }
     },
     "/v1/runners": {
@@ -5443,6 +7927,64 @@
         ]
       }
     },
+    "/v1/runners/{runner_id}/caches/purge": {
+      "post": {
+        "tags": [
+          "Runners"
+        ],
+        "summary": "Purge runner caches",
+        "description": "Asks a runner to delete its dependency caches (pub, Gradle, CocoaPods and\nXcode DerivedData). The runner purges before its next build and clears\n`cache_purge_requested_at` through its heartbeat.",
+        "operationId": "purge_runner_caches",
+        "parameters": [
+          {
+            "name": "runner_id",
+            "in": "path",
+            "description": "Runner ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Purge requested",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateRunnerResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Runner not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/v1/runners/{runner_id}/claim": {
       "post": {
         "tags": [
@@ -5497,7 +8039,7 @@
           "Runners"
         ],
         "summary": "Runner heartbeat",
-        "description": "Sends a heartbeat from a runner to report its status. Authenticated via runner token.",
+        "description": "Sends a heartbeat from a runner to report its status. Authenticated via runner token.\n`capabilities.caches` carries dependency cache sizes; the response carries a pending\ncache purge request.",
         "operationId": "runner_heartbeat",
         "parameters": [
           {
@@ -5521,8 +8063,15 @@
           "required": true
         },
         "responses": {
-          "204": {
-            "description": "Heartbeat recorded"
+          "200": {
+            "description": "Heartbeat recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunnerHeartbeatResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -6176,6 +8725,380 @@
         ]
       }
     },
+    "/v1/runners/{runner_id}/jobs/{job_id}/publish": {
+      "get": {
+        "tags": [
+          "Pipeline Publishing"
+        ],
+        "summary": "Get job publish plan",
+        "description": "Returns enabled store publish settings and the build changelog to the\nassigned runner while the job is active.",
+        "operationId": "get_job_publish_plan",
+        "parameters": [
+          {
+            "name": "runner_id",
+            "in": "path",
+            "description": "Runner ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "job_id",
+            "in": "path",
+            "description": "Build/Job ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-oore-signing-token",
+            "in": "header",
+            "description": "Job-scoped signing grant",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Publish plan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunnerPublishPlan"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Runner authentication or signing grant is missing or invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Runner does not match the active assignment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Job is not active",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/v1/runners/{runner_id}/jobs/{job_id}/publish-results": {
+      "post": {
+        "tags": [
+          "Pipeline Publishing"
+        ],
+        "summary": "Report a store upload",
+        "description": "Records a completed store upload for an active job.",
+        "operationId": "report_job_publish_result",
+        "parameters": [
+          {
+            "name": "runner_id",
+            "in": "path",
+            "description": "Runner ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "job_id",
+            "in": "path",
+            "description": "Build/Job ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-oore-signing-token",
+            "in": "header",
+            "description": "Job-scoped signing grant",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunnerPublishResult"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Runner authentication or signing grant is missing or invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Runner does not match the active assignment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Job is not active",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/v1/runners/{runner_id}/jobs/{job_id}/retry-artifacts": {
+      "get": {
+        "tags": [
+          "Runners"
+        ],
+        "summary": "Get artifacts for a step retry",
+        "description": "Returns the source build's stored artifacts that a retry job uploads,\nwith short-lived download URLs, while the job is active.",
+        "operationId": "get_job_retry_artifacts",
+        "parameters": [
+          {
+            "name": "runner_id",
+            "in": "path",
+            "description": "Runner ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "job_id",
+            "in": "path",
+            "description": "Build/Job ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-oore-signing-token",
+            "in": "header",
+            "description": "Job-scoped signing grant",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Artifacts to reuse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunnerRetryArtifactsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Runner authentication or signing grant is missing or invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Runner does not match the active assignment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Job is not active or is not a step retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/v1/runners/{runner_id}/jobs/{job_id}/secrets": {
+      "get": {
+        "tags": [
+          "Secrets"
+        ],
+        "summary": "Get job-scoped secrets",
+        "description": "Returns resolved instance, project and pipeline secrets (narrowest scope\nwins) only to the assigned runner while the job is active. Both the runner\nbearer token and job-scoped signing grant are required.",
+        "operationId": "get_job_secrets",
+        "parameters": [
+          {
+            "name": "runner_id",
+            "in": "path",
+            "description": "Runner ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "job_id",
+            "in": "path",
+            "description": "Build/Job ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-oore-signing-token",
+            "in": "header",
+            "description": "Job-scoped signing grant",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resolved secrets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunnerJobSecretsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Runner authentication or signing grant is missing or invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Runner does not match the active assignment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Build not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Job is not active",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Secrets could not be loaded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/v1/runners/{runner_id}/jobs/{job_id}/status": {
       "post": {
         "tags": [
@@ -6227,6 +9150,337 @@
           },
           "409": {
             "description": "Invalid state transition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/v1/runners/{runner_id}/jobs/{job_id}/test-results": {
+      "post": {
+        "tags": [
+          "Builds"
+        ],
+        "summary": "Report test results",
+        "description": "Runner reports the tests parsed from one build step. Reports from\nseveral steps of a build add up. Only accepted while the build runs.",
+        "operationId": "report_job_test_results",
+        "parameters": [
+          {
+            "name": "runner_id",
+            "in": "path",
+            "description": "Runner ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "job_id",
+            "in": "path",
+            "description": "Build/Job ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunnerTestReport"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Runner does not match the assignment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Build not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Build is not running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/v1/secrets": {
+      "get": {
+        "tags": [
+          "Secrets"
+        ],
+        "summary": "List instance secrets",
+        "description": "Returns secret names and timestamps. Values are never returned. Requires instance settings read access.",
+        "operationId": "list_instance_secrets",
+        "responses": {
+          "200": {
+            "description": "Secret names",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListSecretsResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Secrets"
+        ],
+        "summary": "Create instance secret",
+        "description": "Stores an encrypted value. The response never contains it. Requires instance settings write access.",
+        "operationId": "create_instance_secret",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSecretRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Secret created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid name or value",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A secret with this name already exists in this scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/v1/secrets/{name}": {
+      "put": {
+        "tags": [
+          "Secrets"
+        ],
+        "summary": "Rotate instance secret",
+        "description": "Replaces the stored value. Requires instance settings write access.",
+        "operationId": "rotate_instance_secret",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Secret name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RotateSecretRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Secret rotated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Secret not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Secrets"
+        ],
+        "summary": "Delete instance secret",
+        "operationId": "delete_instance_secret",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Secret name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "description": "Delete even when Google Play publishing uses the secret",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Secret deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Secret not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A pipeline uses the secret as its Google Play service account",
             "content": {
               "application/json": {
                 "schema": {
@@ -7961,6 +11215,60 @@
         ]
       }
     },
+    "/v1/store-vitals": {
+      "get": {
+        "tags": [
+          "Releases"
+        ],
+        "summary": "Get store vitals",
+        "description": "Google Play crash and ANR rates with top issues, and App Store hang\nrate and launch time, for every app the caller's projects released to a\nstore. The daemon reads the stores every few hours with the projects'\npublishing credentials and serves its latest copy.",
+        "operationId": "get_store_vitals",
+        "responses": {
+          "200": {
+            "description": "Store vitals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoreVitalsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/v1/store-vitals/refresh": {
+      "post": {
+        "tags": [
+          "Releases"
+        ],
+        "summary": "Refresh store vitals",
+        "description": "Asks the daemon to read the stores now for the caller's apps, for\nexample right after granting a missing permission. Waits up to 20\nseconds for the reads and returns what has been read by then. Apps read\nin the last 30 seconds are not read again.",
+        "operationId": "refresh_store_vitals",
+        "responses": {
+          "200": {
+            "description": "Store vitals after the refresh",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoreVitalsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/v1/system/update": {
       "get": {
         "tags": [
@@ -8047,6 +11355,53 @@
           },
           "409": {
             "description": "Managed updater unavailable or already running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/v1/system/update/preflight": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Check whether a one-click backend update can start",
+        "description": "Runs the named preflight checks for the managed macOS update\nsupervisor, each with a fix hint. Results are cached for 30 seconds.\nRequires owner role.",
+        "operationId": "get_runtime_update_preflight",
+        "responses": {
+          "200": {
+            "description": "Backend update preflight checks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeUpdatePreflight"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Owner role required",
             "content": {
               "application/json": {
                 "schema": {
@@ -8864,6 +12219,124 @@
           }
         }
       },
+      "AppStoreConnectKeyResponse": {
+        "type": "object",
+        "required": [
+          "key"
+        ],
+        "properties": {
+          "key": {
+            "$ref": "#/components/schemas/AppStoreConnectKeySummary"
+          }
+        }
+      },
+      "AppStoreConnectKeySummary": {
+        "type": "object",
+        "description": "An App Store Connect API key stored once for the instance. Pipelines that\nsign or publish for the same Apple team can use it instead of their own key.",
+        "required": [
+          "id",
+          "name",
+          "key_id",
+          "issuer_id",
+          "pipeline_count",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string"
+          },
+          "issuer_id": {
+            "type": "string"
+          },
+          "key_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "pipeline_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Pipelines whose iOS signing uses this key."
+          },
+          "updated_at": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "AppStoreDestination": {
+        "type": "string",
+        "description": "Where an App Store Connect upload goes once Apple finishes processing it.",
+        "enum": [
+          "testflight",
+          "app_store"
+        ]
+      },
+      "AppStorePublishConfig": {
+        "type": "object",
+        "description": "App Store publishing settings for a pipeline, stored as the `app_store`\npublish target. Uploads use the App Store Connect API key from the\npipeline's iOS signing settings and require the `app_store` export method.",
+        "required": [
+          "enabled",
+          "testflight_groups",
+          "release_notes"
+        ],
+        "properties": {
+          "destination": {
+            "$ref": "#/components/schemas/AppStoreDestination"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "phased_release": {
+            "type": "boolean",
+            "description": "Release the approved version with Apple's seven-day phased release."
+          },
+          "release_notes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppStoreReleaseNote"
+            },
+            "description": "TestFlight \"What to Test\" or App Store \"What's New\", per locale."
+          },
+          "submit_for_review": {
+            "type": "boolean",
+            "description": "Submit the App Store version for review once the build is attached."
+          },
+          "testflight_groups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "TestFlight group names. Used when `destination` is `testflight`."
+          },
+          "uses_non_exempt_encryption": {
+            "type": "boolean",
+            "description": "Export compliance answer set on each processed build."
+          }
+        }
+      },
+      "AppStoreReleaseNote": {
+        "type": "object",
+        "description": "Release notes for one App Store Connect locale, such as `en-US`.",
+        "required": [
+          "locale",
+          "whats_new"
+        ],
+        "properties": {
+          "locale": {
+            "type": "string"
+          },
+          "whats_new": {
+            "type": "string"
+          }
+        }
+      },
       "AppendBuildLogsRequest": {
         "type": "object",
         "required": [
@@ -8889,6 +12362,35 @@
             "format": "int64"
           }
         }
+      },
+      "ApprovalPolicy": {
+        "type": "object",
+        "description": "Which builds of a pipeline wait for a maintainer before a runner may\nclaim them.",
+        "required": [
+          "required"
+        ],
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Trigger events that need approval: `push`, `pull_request`,\n`tag_push`, `manual` or `schedule`. Empty means every build."
+          },
+          "expires_after_hours": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Hours a build waits for a decision before it is canceled. Defaults\nto 168 (7 days).",
+            "minimum": 0
+          },
+          "required": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
       },
       "Artifact": {
         "type": "object",
@@ -9328,6 +12830,17 @@
           "updated_at"
         ],
         "properties": {
+          "approval": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BuildApproval",
+                "description": "Present when the pipeline's approval policy gated this build."
+              }
+            ]
+          },
           "branch": {
             "type": [
               "string",
@@ -9394,6 +12907,16 @@
             "type": "integer",
             "format": "int64"
           },
+          "retry_steps": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Steps this build retries against `source_build_id`'s stored artifacts.\nAbsent for a full build."
+          },
           "runner_id": {
             "type": [
               "string",
@@ -9455,6 +12978,102 @@
           },
           "trigger_type": {
             "$ref": "#/components/schemas/TriggerType"
+          },
+          "updated_at": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "BuildApproval": {
+        "type": "object",
+        "required": [
+          "state",
+          "requested_at"
+        ],
+        "properties": {
+          "decided_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "decided_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "requested_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "state": {
+            "$ref": "#/components/schemas/BuildApprovalState"
+          }
+        }
+      },
+      "BuildApprovalRequest": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "BuildApprovalResponse": {
+        "type": "object",
+        "required": [
+          "build"
+        ],
+        "properties": {
+          "build": {
+            "$ref": "#/components/schemas/Build"
+          }
+        }
+      },
+      "BuildApprovalState": {
+        "type": "string",
+        "description": "Build approval state. Pending builds stay `queued` but no runner claims them.",
+        "enum": [
+          "pending",
+          "approved",
+          "rejected"
+        ]
+      },
+      "BuildChangedEvent": {
+        "type": "object",
+        "description": "`build` event on `GET /v1/events`: a build was created or changed.",
+        "required": [
+          "build_id",
+          "project_id",
+          "build_number",
+          "status",
+          "updated_at"
+        ],
+        "properties": {
+          "build_id": {
+            "type": "string"
+          },
+          "build_number": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BuildStatus"
           },
           "updated_at": {
             "type": "integer",
@@ -9555,6 +13174,13 @@
             "items": {
               "$ref": "#/components/schemas/BuildEvent"
             }
+          },
+          "retryable_steps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Steps of this finished build that `POST /v1/builds/{build_id}/retry-step`\ncan run again without rebuilding."
           }
         }
       },
@@ -9599,6 +13225,124 @@
             "type": "string"
           }
         }
+      },
+      "BuildInsightsDay": {
+        "type": "object",
+        "description": "One day of finished builds, in the caller's UTC offset.",
+        "required": [
+          "day_start",
+          "succeeded",
+          "failed",
+          "other"
+        ],
+        "properties": {
+          "day_start": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix seconds at the start of the day."
+          },
+          "failed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Failed and timed-out builds."
+          },
+          "other": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Canceled and expired builds."
+          },
+          "p50_duration_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Median run time of the day's succeeded builds."
+          },
+          "succeeded": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "BuildInsightsResponse": {
+        "type": "object",
+        "required": [
+          "window_days",
+          "since",
+          "totals",
+          "previous_totals",
+          "duration",
+          "previous_duration",
+          "queue_wait",
+          "daily",
+          "queue",
+          "projects",
+          "failing_pipelines"
+        ],
+        "properties": {
+          "daily": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BuildInsightsDay"
+            },
+            "description": "One entry per day of the window, oldest first."
+          },
+          "duration": {
+            "$ref": "#/components/schemas/DurationPercentiles",
+            "description": "Run time (start to finish) of succeeded builds in the window."
+          },
+          "failing_pipelines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FailingPipelineInsights"
+            },
+            "description": "Up to five pipelines with the most failures in the window."
+          },
+          "previous_duration": {
+            "$ref": "#/components/schemas/DurationPercentiles",
+            "description": "Run time of succeeded builds in the previous window."
+          },
+          "previous_totals": {
+            "$ref": "#/components/schemas/BuildOutcomeTotals",
+            "description": "The same window length immediately before `since`, for comparison."
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectBuildInsights"
+            },
+            "description": "Projects with finished builds in the window, most builds first."
+          },
+          "queue": {
+            "$ref": "#/components/schemas/BuildQueueSnapshot"
+          },
+          "queue_wait": {
+            "$ref": "#/components/schemas/DurationPercentiles",
+            "description": "Time from queued to started for builds that started in the window."
+          },
+          "since": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Start of the window, in unix seconds."
+          },
+          "totals": {
+            "$ref": "#/components/schemas/BuildOutcomeTotals",
+            "description": "Builds that finished in the window."
+          },
+          "window_days": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "BuildIsolation": {
+        "type": "string",
+        "description": "Where a build's steps run.",
+        "enum": [
+          "host",
+          "vm"
+        ]
       },
       "BuildLogChunk": {
         "type": "object",
@@ -9646,6 +13390,52 @@
           }
         }
       },
+      "BuildOutcomeTotals": {
+        "type": "object",
+        "description": "Outcome counts for builds that finished in a window.",
+        "required": [
+          "finished",
+          "succeeded",
+          "failed",
+          "timed_out",
+          "canceled",
+          "expired"
+        ],
+        "properties": {
+          "canceled": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "expired": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "failed": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "finished": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "succeeded": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "success_rate": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "`succeeded / (succeeded + failed + timed_out)`. Canceled and expired\nbuilds never ran to a verdict, so they are left out. Absent when no\nbuild reached a verdict."
+          },
+          "timed_out": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "BuildPlatform": {
         "type": "string",
         "enum": [
@@ -9653,6 +13443,40 @@
           "ios",
           "macos"
         ]
+      },
+      "BuildQueueSnapshot": {
+        "type": "object",
+        "description": "Builds waiting or running right now.",
+        "required": [
+          "waiting",
+          "awaiting_approval",
+          "running"
+        ],
+        "properties": {
+          "awaiting_approval": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Queued builds held for a maintainer's approval."
+          },
+          "oldest_waiting_since": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "When the longest-waiting build was queued, in unix seconds."
+          },
+          "running": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Assigned and running builds."
+          },
+          "waiting": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Queued and scheduled builds that a runner can pick up."
+          }
+        }
       },
       "BuildStatus": {
         "type": "string",
@@ -9667,6 +13491,121 @@
           "timed_out",
           "expired"
         ]
+      },
+      "BuildTestFailure": {
+        "type": "object",
+        "required": [
+          "suite",
+          "name",
+          "step",
+          "flaky",
+          "history"
+        ],
+        "properties": {
+          "duration_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "flaky": {
+            "type": "boolean",
+            "description": "The test failed, passed, then failed again within the history window."
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TestRunOutcome"
+            },
+            "description": "Recent builds of this pipeline that reported tests, oldest first, ending with this build."
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "stack_trace": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "step": {
+            "type": "string"
+          },
+          "suite": {
+            "type": "string"
+          }
+        }
+      },
+      "BuildTestResultsResponse": {
+        "type": "object",
+        "required": [
+          "failures",
+          "history_window"
+        ],
+        "properties": {
+          "failures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BuildTestFailure"
+            }
+          },
+          "history_window": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many recent test-reporting builds the history and flaky check cover."
+          },
+          "summary": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BuildTestSummary",
+                "description": "Absent when the build reported no test results."
+              }
+            ]
+          }
+        }
+      },
+      "BuildTestSummary": {
+        "type": "object",
+        "description": "Totals across every test report of a build.",
+        "required": [
+          "total",
+          "passed",
+          "failed",
+          "skipped",
+          "duration_ms"
+        ],
+        "properties": {
+          "duration_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "failed": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "passed": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "skipped": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
       },
       "CancelBuildResponse": {
         "type": "object",
@@ -9750,6 +13689,16 @@
           },
           "project_id": {
             "type": "string"
+          },
+          "retry_steps": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Set when the job only retries these steps with the source build's\nstored artifacts, instead of building."
           },
           "signing_token": {
             "type": "string",
@@ -9900,6 +13849,31 @@
             "description": "The plaintext token. Only returned on creation, never again."
           }
         }
+      },
+      "CreateAppStoreConnectKeyRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "key_id",
+          "issuer_id",
+          "private_key_base64"
+        ],
+        "properties": {
+          "issuer_id": {
+            "type": "string"
+          },
+          "key_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "private_key_base64": {
+            "type": "string",
+            "description": "Base64 of the `.p8` file downloaded from App Store Connect."
+          }
+        },
+        "additionalProperties": false
       },
       "CreateArtifactRequest": {
         "type": "object",
@@ -10053,17 +14027,24 @@
             "items": {
               "type": "string"
             },
-            "description": "Terminal build statuses to notify on. Empty or omitted means all terminal events."
+            "description": "Events to notify on. Empty or omitted means all events."
           },
           "name": {
             "type": "string"
+          },
+          "project_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Scope the channel to one project. Omit for an instance-wide channel."
           },
           "secret": {
             "type": [
               "string",
               "null"
             ],
-            "description": "HMAC secret for signing webhook payloads (webhook only, optional)."
+            "description": "Webhook: HMAC secret for signing payloads. Slack: bot token with\n`users:read.email`, used to mention the triggering user. Optional."
           },
           "smtp_config": {
             "oneOf": [
@@ -10081,7 +14062,7 @@
               "string",
               "null"
             ],
-            "description": "Webhook/Mattermost incoming webhook URL (required for webhook/mattermost)."
+            "description": "Incoming webhook URL (required for webhook, mattermost and slack)."
           }
         }
       },
@@ -10091,6 +14072,16 @@
           "name"
         ],
         "properties": {
+          "approval": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ApprovalPolicy"
+              }
+            ]
+          },
           "concurrency": {
             "oneOf": [
               {
@@ -10125,6 +14116,14 @@
           },
           "name": {
             "type": "string"
+          },
+          "timeout_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
           },
           "trigger_config": {
             "oneOf": [
@@ -10195,6 +14194,85 @@
           }
         }
       },
+      "CreateReleaseRequest": {
+        "type": "object",
+        "required": [
+          "build_id",
+          "store",
+          "track"
+        ],
+        "properties": {
+          "artifact_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "build_id": {
+            "type": "string"
+          },
+          "package_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "policy": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReleasePolicy"
+              }
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rollout_fraction": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Initial fraction; defaults to the first policy step."
+          },
+          "state": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReleaseState",
+                "description": "Initial state; defaults to `rolling`."
+              }
+            ]
+          },
+          "store": {
+            "$ref": "#/components/schemas/ReleaseStore"
+          },
+          "track": {
+            "type": "string"
+          },
+          "version_code": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "version_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "CreateScopedDownloadTokenRequest": {
         "type": "object",
         "properties": {
@@ -10244,6 +14322,22 @@
           }
         }
       },
+      "CreateSecretRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "value"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "DeleteNotificationChannelResponse": {
         "type": "object",
         "required": [
@@ -10287,6 +14381,34 @@
           }
         }
       },
+      "DurationPercentiles": {
+        "type": "object",
+        "description": "Median and 90th percentile of a duration, in seconds.",
+        "required": [
+          "samples"
+        ],
+        "properties": {
+          "p50_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "p90_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "samples": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Builds the percentiles cover."
+          }
+        }
+      },
       "EffectiveProjectRetentionResponse": {
         "type": "object",
         "required": [
@@ -10309,6 +14431,37 @@
                 "$ref": "#/components/schemas/ProjectRetentionOverride"
               }
             ]
+          }
+        }
+      },
+      "EventStreamReady": {
+        "type": "object",
+        "description": "`ready` event, the first event on every `GET /v1/events` connection.\nClients refetch once on `ready` after a reconnect, since events sent while\ndisconnected are not replayed.",
+        "required": [
+          "runners"
+        ],
+        "properties": {
+          "project_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "runners": {
+            "type": "boolean",
+            "description": "Whether this stream carries `runner` events."
+          }
+        }
+      },
+      "EventStreamResync": {
+        "type": "object",
+        "description": "`resync` event: events were dropped, so clients should refetch.",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string"
           }
         }
       },
@@ -10412,6 +14565,60 @@
           },
           "ready": {
             "type": "boolean"
+          }
+        }
+      },
+      "FailingPipelineInsights": {
+        "type": "object",
+        "description": "A pipeline with failed or timed-out builds in the window.",
+        "required": [
+          "pipeline_id",
+          "pipeline_name",
+          "project_id",
+          "project_name",
+          "failures",
+          "finished",
+          "current_streak",
+          "last_failed_build_id",
+          "last_failed_build_number",
+          "last_failed_at"
+        ],
+        "properties": {
+          "current_streak": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Failures in a row ending with the newest finished build; 0 once it passed again."
+          },
+          "failures": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "finished": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "last_failed_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "last_failed_build_id": {
+            "type": "string"
+          },
+          "last_failed_build_number": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "pipeline_id": {
+            "type": "string"
+          },
+          "pipeline_name": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "project_name": {
+            "type": "string"
           }
         }
       },
@@ -10656,6 +14863,148 @@
           }
         }
       },
+      "GooglePlayCredentialsTestRequest": {
+        "type": "object",
+        "description": "Which service account key to check against Google Play. The values come\nfrom the form, so a key can be checked before the settings are saved.",
+        "required": [
+          "service_account_secret"
+        ],
+        "properties": {
+          "package_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The app to open. When omitted, the saved expected package is used,\nthen the package of the pipeline's latest Google Play release."
+          },
+          "service_account_secret": {
+            "type": "string",
+            "description": "Name of the secret holding the service account JSON key."
+          }
+        }
+      },
+      "GooglePlayCredentialsTestResponse": {
+        "type": "object",
+        "description": "Outcome of a Google Play credentials check. A failed check is a normal\nanswer, with Google's reason in `message`, not an HTTP error.",
+        "required": [
+          "ok",
+          "message",
+          "checked_at"
+        ],
+        "properties": {
+          "checked_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "message": {
+            "type": "string",
+            "description": "What passed, or the exact failure."
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "package_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The app the check opened, when one was known."
+          },
+          "service_account_email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The key's `client_email`, when the secret is a service account key."
+          }
+        }
+      },
+      "GooglePlayPublishConfig": {
+        "type": "object",
+        "description": "Per-pipeline Google Play upload settings. Credentials are referenced by\nsecret name and never stored here.",
+        "required": [
+          "service_account_secret",
+          "track"
+        ],
+        "properties": {
+          "draft": {
+            "type": "boolean",
+            "description": "Create a draft release instead of rolling out."
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "in_app_update_priority": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "In-app update priority, 0 to 5.",
+            "minimum": 0
+          },
+          "package_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Expected application id. When omitted, the AAB's package is used."
+          },
+          "release_notes": {
+            "$ref": "#/components/schemas/GooglePlayReleaseNotesSource"
+          },
+          "release_notes_dir": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "release_notes_locale": {
+            "type": "string"
+          },
+          "rollout_percent": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Initial staged rollout, 0 < percent <= 100. Omitted means 100."
+          },
+          "rollout_policy": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReleasePolicy",
+                "description": "Staged rollout schedule, crash-rate halt and approval gate for the\nrelease record. Omitted means the default schedule with no halt."
+              }
+            ]
+          },
+          "service_account_secret": {
+            "type": "string",
+            "description": "Name of the secret holding the service account JSON key."
+          },
+          "track": {
+            "type": "string",
+            "description": "`internal`, `closed`, `open`, `production`, or a custom track name."
+          },
+          "upload_mapping": {
+            "type": "boolean",
+            "description": "Upload R8/ProGuard `mapping.txt` when the build produced one."
+          }
+        },
+        "additionalProperties": false
+      },
+      "GooglePlayReleaseNotesSource": {
+        "type": "string",
+        "description": "Where Google Play release notes come from.",
+        "enum": [
+          "none",
+          "changelog",
+          "repo_files"
+        ]
+      },
       "HealthResponse": {
         "type": "object",
         "required": [
@@ -10786,6 +15135,21 @@
           },
           "status": {
             "type": "string"
+          },
+          "status_checked_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "When Oore last checked the source's credentials."
+          },
+          "status_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the source has its current status: `expired`, `rejected` or\n`refresh_failed` when credentials stopped working."
           },
           "updated_at": {
             "type": "integer",
@@ -10993,6 +15357,14 @@
           }
         }
       },
+      "IosExportMethod": {
+        "type": "string",
+        "description": "How a signed iOS archive is distributed.\n\n`ad_hoc` IPAs install on registered devices through Oore. `app_store` IPAs\nare signed with an App Store distribution profile and can only be uploaded\nto App Store Connect for TestFlight or App Store release.",
+        "enum": [
+          "ad_hoc",
+          "app_store"
+        ]
+      },
       "IosProvisioningProfileInput": {
         "type": "object",
         "required": [
@@ -11110,6 +15482,20 @@
           "total": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "ListAppStoreConnectKeysResponse": {
+        "type": "object",
+        "required": [
+          "keys"
+        ],
+        "properties": {
+          "keys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppStoreConnectKeySummary"
+            }
           }
         }
       },
@@ -11367,6 +15753,39 @@
           }
         }
       },
+      "ListReleaseActivityResponse": {
+        "type": "object",
+        "required": [
+          "events"
+        ],
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReleaseActivityEvent"
+            }
+          }
+        }
+      },
+      "ListReleasesResponse": {
+        "type": "object",
+        "required": [
+          "releases",
+          "total"
+        ],
+        "properties": {
+          "releases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Release"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "ListRepositoriesResponse": {
         "type": "object",
         "required": [
@@ -11398,6 +15817,11 @@
             "type": "integer",
             "format": "int64"
           },
+          "queued_total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Builds waiting for a runner."
+          },
           "runners": {
             "type": "array",
             "items": {
@@ -11407,6 +15831,25 @@
           "total": {
             "type": "integer",
             "format": "int64"
+          },
+          "unmatched_queued_total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Queued builds whose `runs_on` labels no online runner has."
+          }
+        }
+      },
+      "ListSecretsResponse": {
+        "type": "object",
+        "required": [
+          "secrets"
+        ],
+        "properties": {
+          "secrets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SecretSummary"
+            }
           }
         }
       },
@@ -11568,11 +16011,11 @@
             "items": {
               "type": "string"
             },
-            "description": "Which terminal build statuses trigger this channel. Empty means all."
+            "description": "Which events trigger this channel. Empty means all."
           },
           "has_secret": {
             "type": "boolean",
-            "description": "True if the channel has an HMAC secret configured (webhook only)."
+            "description": "True if the channel has a secret configured: the HMAC secret for\nwebhook channels, or the bot token used for mentions on Slack channels."
           },
           "has_smtp_config": {
             "type": "boolean",
@@ -11588,9 +16031,34 @@
           "name": {
             "type": "string"
           },
+          "project_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Project this channel is scoped to. Absent means the channel receives\nevents from every project, plus instance-wide events such as runner\noffline."
+          },
+          "smtp_summary": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SmtpConfigSummary",
+                "description": "SMTP settings without the password (email only). Returned when\nreading one channel."
+              }
+            ]
+          },
           "updated_at": {
             "type": "integer",
             "format": "int64"
+          },
+          "url_host": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Host of the configured URL, so operators can tell which endpoint\nreceives alerts. The full URL can carry a token and is never exposed.\nReturned when reading one channel."
           }
         }
       },
@@ -11610,7 +16078,8 @@
         "enum": [
           "webhook",
           "mattermost",
-          "email"
+          "email",
+          "slack"
         ]
       },
       "NotificationDelivery": {
@@ -11655,6 +16124,12 @@
             "type": "string"
           },
           "last_error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "release_id": {
             "type": [
               "string",
               "null"
@@ -11863,11 +16338,16 @@
           "execution_config",
           "trigger_config",
           "concurrency",
+          "timeout_minutes",
+          "approval",
           "enabled",
           "created_at",
           "updated_at"
         ],
         "properties": {
+          "approval": {
+            "$ref": "#/components/schemas/ApprovalPolicy"
+          },
           "concurrency": {
             "$ref": "#/components/schemas/ConcurrencyPolicy"
           },
@@ -11896,6 +16376,12 @@
           "project_id": {
             "type": "string"
           },
+          "timeout_minutes": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Minutes a running build may take before it is marked `timed_out`.",
+            "minimum": 0
+          },
           "trigger_config": {
             "$ref": "#/components/schemas/TriggerConfig"
           },
@@ -11921,6 +16407,38 @@
           },
           "release": {
             "$ref": "#/components/schemas/AndroidSigningProfile"
+          }
+        }
+      },
+      "PipelineAppStorePublishResponse": {
+        "type": "object",
+        "required": [
+          "pipeline_id",
+          "config",
+          "has_api_key",
+          "app_store_export"
+        ],
+        "properties": {
+          "app_store_export": {
+            "type": "boolean",
+            "description": "Whether the pipeline's iOS signing exports App Store IPAs."
+          },
+          "config": {
+            "$ref": "#/components/schemas/AppStorePublishConfig"
+          },
+          "has_api_key": {
+            "type": "boolean",
+            "description": "Whether the pipeline's iOS signing has an App Store Connect API key,\nits own or a shared one."
+          },
+          "pipeline_id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
           }
         }
       },
@@ -11999,6 +16517,11 @@
               "type": "string"
             }
           },
+          "build_number_offset": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Added to the project build number to form `OORE_VERSION_CODE`, so the\nfirst store upload can start above the store's existing version code."
+          },
           "commands": {
             "$ref": "#/components/schemas/PipelineCommandStages"
           },
@@ -12014,6 +16537,9 @@
               "null"
             ]
           },
+          "isolation": {
+            "$ref": "#/components/schemas/BuildIsolation"
+          },
           "platform_build_args": {
             "$ref": "#/components/schemas/PlatformBuildArgs"
           },
@@ -12025,6 +16551,47 @@
             "items": {
               "$ref": "#/components/schemas/BuildPlatform"
             }
+          },
+          "runs_on": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Runner labels a build needs, all of them. Empty means `macos`."
+          }
+        }
+      },
+      "PipelineGooglePlayPublishResponse": {
+        "type": "object",
+        "required": [
+          "pipeline_id",
+          "service_account_secret_present"
+        ],
+        "properties": {
+          "config": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/GooglePlayPublishConfig",
+                "description": "Absent until publish settings are saved."
+              }
+            ]
+          },
+          "pipeline_id": {
+            "type": "string"
+          },
+          "service_account_secret_present": {
+            "type": "boolean",
+            "description": "Whether the referenced service account secret exists in a visible scope."
+          },
+          "updated_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
           }
         }
       },
@@ -12064,10 +16631,11 @@
             "type": "boolean"
           },
           "export_method": {
-            "type": "string"
+            "$ref": "#/components/schemas/IosExportMethod"
           },
           "has_api_key": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Whether the pipeline stores its own App Store Connect API key."
           },
           "has_p12": {
             "type": "boolean"
@@ -12105,6 +16673,17 @@
             "items": {
               "$ref": "#/components/schemas/IosProvisioningProfileSummary"
             }
+          },
+          "shared_api_key": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AppStoreConnectKeySummary",
+                "description": "The shared App Store Connect key in use. When set it takes the place of\nthe pipeline's own key, which stays stored for switching back."
+              }
+            ]
           },
           "team_id": {
             "type": [
@@ -12248,6 +16827,39 @@
           "updated_at": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "ProjectBuildInsights": {
+        "type": "object",
+        "required": [
+          "project_id",
+          "project_name",
+          "totals",
+          "duration",
+          "last_status",
+          "last_finished_at"
+        ],
+        "properties": {
+          "duration": {
+            "$ref": "#/components/schemas/DurationPercentiles"
+          },
+          "last_finished_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "last_status": {
+            "$ref": "#/components/schemas/BuildStatus",
+            "description": "Status of the project's newest finished build in the window."
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "project_name": {
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/BuildOutcomeTotals"
           }
         }
       },
@@ -12437,6 +17049,13 @@
           "viewer"
         ]
       },
+      "PublishStore": {
+        "type": "string",
+        "enum": [
+          "google_play",
+          "app_store"
+        ]
+      },
       "ReEnableUserResponse": {
         "type": "object",
         "required": [
@@ -12454,7 +17073,9 @@
           "ok",
           "database",
           "migrations",
-          "encryption"
+          "encryption",
+          "version",
+          "package_version"
         ],
         "properties": {
           "database": {
@@ -12468,6 +17089,14 @@
           },
           "ok": {
             "type": "boolean"
+          },
+          "package_version": {
+            "type": "string",
+            "description": "Version of the running `oored` binary."
+          },
+          "version": {
+            "type": "string",
+            "description": "Installed release version from the install root's `VERSION` file."
           }
         }
       },
@@ -12519,6 +17148,13 @@
         "properties": {
           "capabilities": {
             "type": "object"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Operator labels for the new runner, added to the detected labels."
           },
           "name": {
             "type": "string"
@@ -12585,6 +17221,422 @@
           }
         }
       },
+      "Release": {
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "build_id",
+          "platform",
+          "store",
+          "track",
+          "state",
+          "rollout_fraction",
+          "policy",
+          "health",
+          "awaiting_approval",
+          "allowed_actions",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "allowed_actions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReleaseAction"
+            },
+            "description": "Actions the caller may take now, from their project role and the state."
+          },
+          "approved_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "approved_by_email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "artifact_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "awaiting_approval": {
+            "type": "boolean"
+          },
+          "build_id": {
+            "type": "string"
+          },
+          "build_number": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "crash_rate": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "crash_rate_threshold": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "health": {
+            "$ref": "#/components/schemas/ReleaseHealth"
+          },
+          "id": {
+            "type": "string"
+          },
+          "next_fraction": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "next_step_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "package_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "platform": {
+            "type": "string",
+            "description": "`android` or `ios`, derived from the store."
+          },
+          "policy": {
+            "$ref": "#/components/schemas/ReleasePolicy"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "project_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rollout_fraction": {
+            "type": "number",
+            "format": "double",
+            "description": "Fraction of users, 0..1."
+          },
+          "state": {
+            "$ref": "#/components/schemas/ReleaseState"
+          },
+          "store": {
+            "$ref": "#/components/schemas/ReleaseStore"
+          },
+          "track": {
+            "type": "string",
+            "description": "Play track, or TestFlight group / `app_store`."
+          },
+          "updated_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "version_code": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "version_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ReleaseAction": {
+        "type": "string",
+        "description": "Manual controls on a release.",
+        "enum": [
+          "raise",
+          "pause",
+          "resume",
+          "halt",
+          "complete",
+          "approve"
+        ]
+      },
+      "ReleaseActionRequest": {
+        "type": "object",
+        "properties": {
+          "fraction": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Raise only: target fraction (0..1]. Defaults to the next policy step."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ReleaseActivityEvent": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ReleaseHistoryEntry"
+          },
+          {
+            "type": "object",
+            "required": [
+              "release_id",
+              "project_id",
+              "build_id",
+              "store",
+              "track"
+            ],
+            "properties": {
+              "build_id": {
+                "type": "string"
+              },
+              "project_id": {
+                "type": "string"
+              },
+              "project_name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "release_id": {
+                "type": "string"
+              },
+              "store": {
+                "$ref": "#/components/schemas/ReleaseStore"
+              },
+              "track": {
+                "type": "string"
+              },
+              "version_name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "A history entry with the release it belongs to, for activity feeds."
+      },
+      "ReleaseApprovalGate": {
+        "type": "string",
+        "description": "Where a maintainer approval is required, if anywhere.",
+        "enum": [
+          "none",
+          "before_upload",
+          "before_production"
+        ]
+      },
+      "ReleaseChangedEvent": {
+        "type": "object",
+        "description": "`release` event on `GET /v1/events`: a release was created or its state\nor rollout changed.",
+        "required": [
+          "release_id",
+          "project_id",
+          "build_id",
+          "state",
+          "rollout_fraction",
+          "updated_at"
+        ],
+        "properties": {
+          "build_id": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "release_id": {
+            "type": "string"
+          },
+          "rollout_fraction": {
+            "type": "number",
+            "format": "double",
+            "description": "Fraction of users, 0..1."
+          },
+          "state": {
+            "$ref": "#/components/schemas/ReleaseState"
+          },
+          "updated_at": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ReleaseDetailResponse": {
+        "type": "object",
+        "required": [
+          "release",
+          "history"
+        ],
+        "properties": {
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReleaseHistoryEntry"
+            }
+          },
+          "release": {
+            "$ref": "#/components/schemas/Release"
+          }
+        }
+      },
+      "ReleaseHealth": {
+        "type": "string",
+        "enum": [
+          "unknown",
+          "healthy",
+          "warning",
+          "breached"
+        ]
+      },
+      "ReleaseHistoryEntry": {
+        "type": "object",
+        "required": [
+          "id",
+          "at",
+          "to_state"
+        ],
+        "properties": {
+          "actor_email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "actor_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Null when the daemon or a store made the change."
+          },
+          "at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "from_fraction": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "from_state": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReleaseState",
+                "description": "Null for the entry that created the release."
+              }
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "to_fraction": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "to_state": {
+            "$ref": "#/components/schemas/ReleaseState"
+          }
+        }
+      },
+      "ReleasePolicy": {
+        "type": "object",
+        "description": "Staged rollout policy stored with each release.",
+        "properties": {
+          "approval": {
+            "$ref": "#/components/schemas/ReleaseApprovalGate"
+          },
+          "crash_rate_threshold": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Crash rate (0..1) at or above which the daemon halts the rollout."
+          },
+          "interval_hours": {
+            "type": "number",
+            "format": "double",
+            "description": "Hours between automatic steps."
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "double"
+            },
+            "description": "Ascending rollout fractions in (0, 1]; the last step must be 1."
+          }
+        }
+      },
+      "ReleaseState": {
+        "type": "string",
+        "enum": [
+          "uploading",
+          "processing",
+          "in_review",
+          "rolling",
+          "paused",
+          "halted",
+          "complete",
+          "failed"
+        ]
+      },
+      "ReleaseStore": {
+        "type": "string",
+        "description": "Store a release is published to.",
+        "enum": [
+          "google_play",
+          "app_store"
+        ]
+      },
       "RemoteAuthMode": {
         "type": "string",
         "enum": [
@@ -12623,7 +17675,8 @@
           "platform_build_args",
           "platform_commands",
           "env_keys",
-          "artifact_patterns"
+          "artifact_patterns",
+          "isolation"
         ],
         "properties": {
           "artifact_patterns": {
@@ -12631,6 +17684,10 @@
             "items": {
               "type": "string"
             }
+          },
+          "build_number_offset": {
+            "type": "integer",
+            "format": "int64"
           },
           "commands": {
             "$ref": "#/components/schemas/PipelineCommandStages"
@@ -12647,6 +17704,9 @@
               "null"
             ]
           },
+          "isolation": {
+            "$ref": "#/components/schemas/BuildIsolation"
+          },
           "platform_build_args": {
             "$ref": "#/components/schemas/PlatformBuildArgs"
           },
@@ -12657,6 +17717,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/BuildPlatform"
+            }
+          },
+          "runs_on": {
+            "type": "array",
+            "items": {
+              "type": "string"
             }
           }
         }
@@ -12835,6 +17901,18 @@
           }
         }
       },
+      "RetryBuildStepRequest": {
+        "type": "object",
+        "required": [
+          "step"
+        ],
+        "properties": {
+          "step": {
+            "type": "string",
+            "description": "One of the build's `retryable_steps`, such as `publish-play`."
+          }
+        }
+      },
       "RevokeApiTokenResponse": {
         "type": "object",
         "required": [
@@ -12857,6 +17935,19 @@
           }
         }
       },
+      "RotateSecretRequest": {
+        "type": "object",
+        "description": "Replace a secret's value (rotation).",
+        "required": [
+          "value"
+        ],
+        "properties": {
+          "value": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "Runner": {
         "type": "object",
         "required": [
@@ -12868,6 +17959,14 @@
           "updated_at"
         ],
         "properties": {
+          "cache_purge_requested_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Set while a dependency cache purge waits for the runner to pick it up."
+          },
           "capabilities": {
             "type": "object"
           },
@@ -12875,8 +17974,32 @@
             "type": "integer",
             "format": "int64"
           },
+          "custom_labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Labels an operator assigned to this runner."
+          },
+          "disk_pressure": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RunnerDiskPressure"
+              }
+            ]
+          },
           "id": {
             "type": "string"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Every label the scheduler matches `runs_on` against: the labels detected\nfrom capabilities plus `custom_labels`."
           },
           "last_heartbeat_at": {
             "type": [
@@ -12884,6 +18007,17 @@
               "null"
             ],
             "format": "int64"
+          },
+          "metrics": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RunnerMetrics",
+                "description": "Utilisation from the latest heartbeat that carried metrics."
+              }
+            ]
           },
           "name": {
             "type": "string"
@@ -12963,6 +18097,74 @@
           }
         }
       },
+      "RunnerAppStorePublishPlan": {
+        "type": "object",
+        "description": "What the runner needs to upload the job's IPA to App Store Connect.",
+        "required": [
+          "config",
+          "credentials"
+        ],
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/AppStorePublishConfig"
+          },
+          "credentials": {
+            "$ref": "#/components/schemas/RunnerAppStoreUploadCredentials"
+          }
+        }
+      },
+      "RunnerAppStoreUploadCredentials": {
+        "type": "object",
+        "description": "App Store Connect API key handed to the runner for `altool` upload.",
+        "required": [
+          "key_id",
+          "issuer_id",
+          "private_key_pem"
+        ],
+        "properties": {
+          "issuer_id": {
+            "type": "string"
+          },
+          "key_id": {
+            "type": "string"
+          },
+          "private_key_pem": {
+            "type": "string"
+          }
+        }
+      },
+      "RunnerChangedEvent": {
+        "type": "object",
+        "description": "`runner` event on `GET /v1/events`: a runner was registered, removed,\nrenamed or changed status. Sent only to users who can read runners.",
+        "required": [
+          "runner_id",
+          "name",
+          "status",
+          "removed"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "removed": {
+            "type": "boolean",
+            "description": "True when the runner no longer exists; `status` is its last known one."
+          },
+          "runner_id": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunnerStatus"
+          }
+        }
+      },
+      "RunnerDiskPressure": {
+        "type": "string",
+        "enum": [
+          "warning",
+          "critical"
+        ]
+      },
       "RunnerHeartbeatRequest": {
         "type": "object",
         "required": [
@@ -12972,8 +18174,31 @@
           "capabilities": {
             "type": "object"
           },
+          "metrics": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RunnerMetrics"
+              }
+            ]
+          },
           "status": {
             "type": "string"
+          }
+        }
+      },
+      "RunnerHeartbeatResponse": {
+        "type": "object",
+        "description": "Heartbeat answer. Runners purge their dependency caches when\n`cache_purge_requested_at` is newer than their last purge, then report\n`capabilities.caches.purged_at` to clear the request.",
+        "properties": {
+          "cache_purge_requested_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
           }
         }
       },
@@ -13024,7 +18249,7 @@
             "type": "boolean"
           },
           "export_method": {
-            "type": "string"
+            "$ref": "#/components/schemas/IosExportMethod"
           },
           "mode": {
             "$ref": "#/components/schemas/IosSigningMode"
@@ -13064,12 +18289,230 @@
           }
         }
       },
+      "RunnerJobSecret": {
+        "type": "object",
+        "description": "A resolved secret delivered to the runner assigned to an active job.",
+        "required": [
+          "name",
+          "value",
+          "scope"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/SecretScope"
+          },
+          "value": {
+            "type": "string"
+          }
+        }
+      },
+      "RunnerJobSecretsResponse": {
+        "type": "object",
+        "required": [
+          "secrets"
+        ],
+        "properties": {
+          "secrets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunnerJobSecret"
+            }
+          }
+        }
+      },
+      "RunnerMetrics": {
+        "type": "object",
+        "description": "Host utilisation a runner reports with each heartbeat.",
+        "required": [
+          "cpu_percent",
+          "memory_used_bytes",
+          "memory_total_bytes",
+          "disk_free_bytes",
+          "disk_total_bytes"
+        ],
+        "properties": {
+          "cache_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Size of the runner's dependency caches, when measured.",
+            "minimum": 0
+          },
+          "collected_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "When the backend received these metrics. Set by the backend."
+          },
+          "cpu_percent": {
+            "type": "number",
+            "format": "double",
+            "description": "One-minute load average as a share of logical CPUs, capped at 100."
+          },
+          "disk_free_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Free space on the volume that holds build workspaces.",
+            "minimum": 0
+          },
+          "disk_total_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "memory_total_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "memory_used_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "RunnerPolicyBlockReason": {
         "type": "string",
         "enum": [
           "instance_paused",
           "repository_unavailable"
         ]
+      },
+      "RunnerPublishPlan": {
+        "type": "object",
+        "description": "Publish work for the runner, fetched with the job-scoped grant.",
+        "properties": {
+          "app_store": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RunnerAppStorePublishPlan",
+                "description": "Present only when App Store publishing is enabled for an App Store export."
+              }
+            ]
+          },
+          "changelog": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "google_play": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/GooglePlayPublishConfig",
+                "description": "Present only when Google Play publishing is enabled."
+              }
+            ]
+          }
+        }
+      },
+      "RunnerPublishResult": {
+        "type": "object",
+        "description": "Outcome of a store upload, reported by the runner.",
+        "required": [
+          "store",
+          "track",
+          "package_name",
+          "version_code",
+          "status"
+        ],
+        "properties": {
+          "package_name": {
+            "type": "string"
+          },
+          "rollout_fraction": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Staged rollout fraction, 0 < f <= 1. Absent for drafts."
+          },
+          "status": {
+            "type": "string",
+            "description": "`completed`, `in_progress` or `draft`."
+          },
+          "store": {
+            "$ref": "#/components/schemas/PublishStore"
+          },
+          "track": {
+            "type": "string",
+            "description": "Store track as sent to the store (for Play: internal, alpha, beta, production or custom)."
+          },
+          "version_code": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "version_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "RunnerRetryArtifact": {
+        "type": "object",
+        "description": "A stored artifact of the build a retry job reuses.",
+        "required": [
+          "id",
+          "name",
+          "artifact_type",
+          "metadata",
+          "download_url"
+        ],
+        "properties": {
+          "artifact_type": {
+            "type": "string"
+          },
+          "checksum": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "download_url": {
+            "type": "string",
+            "description": "Short-lived download URL, relative to the daemon for local storage."
+          },
+          "id": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "RunnerRetryArtifactsResponse": {
+        "type": "object",
+        "required": [
+          "artifacts"
+        ],
+        "properties": {
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunnerRetryArtifact"
+            }
+          }
+        }
       },
       "RunnerStatus": {
         "type": "string",
@@ -13080,11 +18523,134 @@
           "draining"
         ]
       },
+      "RunnerTestFailure": {
+        "type": "object",
+        "required": [
+          "suite",
+          "name"
+        ],
+        "properties": {
+          "duration_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "description": "Full test name, including group names."
+          },
+          "stack_trace": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "suite": {
+            "type": "string",
+            "description": "Test file or suite, such as `test/login_test.dart`."
+          }
+        }
+      },
+      "RunnerTestReport": {
+        "type": "object",
+        "description": "Test results parsed by the runner from one build step.",
+        "required": [
+          "step",
+          "total",
+          "passed",
+          "failed",
+          "skipped",
+          "duration_ms",
+          "failures"
+        ],
+        "properties": {
+          "duration_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "failed": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "failures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunnerTestFailure"
+            },
+            "description": "Failed tests. The daemon keeps at most 500 per build."
+          },
+          "passed": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "skipped": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "step": {
+            "type": "string",
+            "description": "Step that produced the report, such as `build-2`."
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "RuntimeMode": {
         "type": "string",
         "enum": [
           "local",
           "remote"
+        ]
+      },
+      "RuntimeUpdateCheck": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "status"
+        ],
+        "properties": {
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fix": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What to run or change on the backend Mac to make the check pass."
+          },
+          "id": {
+            "type": "string",
+            "description": "Stable identifier, for example `updater_definition`."
+          },
+          "label": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RuntimeUpdateCheckStatus"
+          }
+        }
+      },
+      "RuntimeUpdateCheckStatus": {
+        "type": "string",
+        "enum": [
+          "pass",
+          "warn",
+          "fail"
         ]
       },
       "RuntimeUpdatePhase": {
@@ -13095,6 +18661,31 @@
           "restarting",
           "failed"
         ]
+      },
+      "RuntimeUpdatePreflight": {
+        "type": "object",
+        "required": [
+          "ready",
+          "checked_at",
+          "checks"
+        ],
+        "properties": {
+          "checked_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix timestamp, in seconds, of when the checks ran."
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RuntimeUpdateCheck"
+            }
+          },
+          "ready": {
+            "type": "boolean",
+            "description": "True when no check failed, so a one-click backend update can start."
+          }
+        }
       },
       "RuntimeUpdateStatus": {
         "type": "object",
@@ -13117,6 +18708,27 @@
           }
         }
       },
+      "ScheduleTrigger": {
+        "type": "object",
+        "description": "A cron schedule that starts a build on a branch.",
+        "required": [
+          "cron"
+        ],
+        "properties": {
+          "branch": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Branch to build. Defaults to the project's default branch."
+          },
+          "cron": {
+            "type": "string",
+            "description": "Five-field cron expression (`minute hour day month weekday`) in UTC,\nor `@hourly`, `@daily`, `@weekly`, `@monthly`."
+          }
+        },
+        "additionalProperties": false
+      },
       "ScmProvider": {
         "type": "string",
         "enum": [
@@ -13124,6 +18736,64 @@
           "gitlab",
           "local_git"
         ]
+      },
+      "SecretResponse": {
+        "type": "object",
+        "required": [
+          "secret"
+        ],
+        "properties": {
+          "secret": {
+            "$ref": "#/components/schemas/SecretSummary"
+          }
+        }
+      },
+      "SecretScope": {
+        "type": "string",
+        "description": "Where a secret is defined. A job sees instance, project and pipeline secrets;\non a name clash the narrower scope wins.",
+        "enum": [
+          "instance",
+          "project",
+          "pipeline"
+        ]
+      },
+      "SecretSummary": {
+        "type": "object",
+        "description": "Secret metadata. Values are write-only and never returned by the user API.",
+        "required": [
+          "name",
+          "scope",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "pipeline_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "project_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scope": {
+            "$ref": "#/components/schemas/SecretScope"
+          },
+          "updated_at": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
       },
       "SetupCompleteResponse": {
         "type": "object",
@@ -13485,6 +19155,43 @@
           }
         }
       },
+      "SmtpConfigSummary": {
+        "type": "object",
+        "description": "The SMTP settings an operator can read back. The password is never\nreturned.",
+        "required": [
+          "host",
+          "port",
+          "username",
+          "tls_mode",
+          "from_address",
+          "recipients"
+        ],
+        "properties": {
+          "from_address": {
+            "type": "string"
+          },
+          "host": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "recipients": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tls_mode": {
+            "$ref": "#/components/schemas/SmtpTlsMode"
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      },
       "SmtpTlsMode": {
         "type": "string",
         "enum": [
@@ -13553,6 +19260,190 @@
           },
           "status": {
             "type": "string"
+          }
+        }
+      },
+      "StoreAppVitals": {
+        "type": "object",
+        "description": "Store health of one app: a project shipped to one store under one package name or bundle id.",
+        "required": [
+          "project_id",
+          "project_name",
+          "store",
+          "app_identifier",
+          "vitals",
+          "issues"
+        ],
+        "properties": {
+          "app_identifier": {
+            "type": "string",
+            "description": "Package name on Google Play, bundle id on the App Store."
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the last read failed, such as missing credentials or access."
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StoreErrorIssue"
+            },
+            "description": "Most-reported issues of the last 28 days. Google Play only."
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "project_name": {
+            "type": "string"
+          },
+          "refreshed_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "When Oore last read the store; absent until the first read finishes."
+          },
+          "store": {
+            "$ref": "#/components/schemas/ReleaseStore"
+          },
+          "vitals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StoreVital"
+            }
+          }
+        }
+      },
+      "StoreErrorIssue": {
+        "type": "object",
+        "description": "A grouped crash or ANR reported by the store.",
+        "required": [
+          "kind",
+          "cause",
+          "location",
+          "reports",
+          "users"
+        ],
+        "properties": {
+          "cause": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`crash` or `anr`."
+          },
+          "last_reported_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "location": {
+            "type": "string"
+          },
+          "reports": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The issue in the store's console."
+          },
+          "users": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "StoreVital": {
+        "type": "object",
+        "required": [
+          "kind",
+          "unit",
+          "points"
+        ],
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/StoreVitalKind"
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StoreVitalPoint"
+            },
+            "description": "Oldest first."
+          },
+          "threshold": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Where the store starts treating the value as bad: Play's bad-behavior\nthreshold, or Apple's recommended goal."
+          },
+          "unit": {
+            "type": "string",
+            "description": "Unit as the store names it; `ratio` for Play rates."
+          },
+          "value": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Headline value: Play's 28-day user-weighted rate, or the latest App Store version's value."
+          }
+        }
+      },
+      "StoreVitalKind": {
+        "type": "string",
+        "description": "A store health metric shown on Home.",
+        "enum": [
+          "crash_rate",
+          "anr_rate",
+          "hang_rate",
+          "launch_time"
+        ]
+      },
+      "StoreVitalPoint": {
+        "type": "object",
+        "description": "One point of a store metric: a day for Google Play, an app version for the App Store.",
+        "required": [
+          "label"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "`YYYY-MM-DD` for Google Play, the app version for the App Store."
+          },
+          "value": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "StoreVitalsResponse": {
+        "type": "object",
+        "required": [
+          "apps"
+        ],
+        "properties": {
+          "apps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StoreAppVitals"
+            }
           }
         }
       },
@@ -13699,6 +19590,28 @@
           }
         }
       },
+      "TestRunOutcome": {
+        "type": "object",
+        "description": "One earlier run of a test in the same pipeline.",
+        "required": [
+          "build_id",
+          "build_number",
+          "status"
+        ],
+        "properties": {
+          "build_id": {
+            "type": "string"
+          },
+          "build_number": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "type": "string",
+            "description": "`failed`, or `passed` when the build reported tests and this one did not fail."
+          }
+        }
+      },
       "TriggerConfig": {
         "type": "object",
         "required": [
@@ -13710,13 +19623,42 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "description": "Branch globs for push and pull request events. When only `tags` is\nset, branch events do not trigger."
           },
           "events": {
             "type": "array",
             "items": {
               "type": "string"
             }
+          },
+          "paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Push and pull request events trigger only when a changed file matches\none of these globs (`**` spans directories)."
+          },
+          "paths_ignore": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Push and pull request events are skipped when every changed file\nmatches one of these globs."
+          },
+          "schedules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScheduleTrigger"
+            },
+            "description": "Cron schedules, evaluated in UTC."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tag globs for tag push events. When only `branches` is set, tag\nevents do not trigger."
           }
         }
       },
@@ -13782,6 +19724,37 @@
             "$ref": "#/components/schemas/TrustedProxySettingsPublic"
           }
         }
+      },
+      "UpdateAppStoreConnectKeyRequest": {
+        "type": "object",
+        "description": "Rename a shared key or replace it. Omitted fields keep their stored value;\na new `key_id` requires a new private key.",
+        "properties": {
+          "issuer_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "key_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "private_key_base64": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
       },
       "UpdateArtifactStorageSettingsRequest": {
         "type": "object",
@@ -13947,12 +19920,19 @@
               "null"
             ]
           },
+          "project_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "New project scope. Omit to keep existing; pass empty string to make\nthe channel instance-wide."
+          },
           "secret": {
             "type": [
               "string",
               "null"
             ],
-            "description": "New HMAC secret. Omit to keep existing; pass empty string to clear."
+            "description": "New HMAC secret (webhook) or bot token (slack). Omit to keep existing;\npass empty string to clear."
           },
           "smtp_config": {
             "oneOf": [
@@ -14034,6 +20014,17 @@
           "enabled": {
             "type": "boolean"
           },
+          "export_method": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/IosExportMethod",
+                "description": "Omit to keep the stored export method. Changing it discards stored\nprovisioning profiles because ad hoc and App Store profiles differ."
+              }
+            ]
+          },
           "mode": {
             "$ref": "#/components/schemas/IosSigningMode"
           },
@@ -14042,6 +20033,13 @@
             "items": {
               "$ref": "#/components/schemas/IosProvisioningProfileInput"
             }
+          },
+          "shared_api_key_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Use a shared App Store Connect key instead of the pipeline's own.\nOmit to keep the current choice; an empty string switches back to the\npipeline's own key."
           },
           "team_id": {
             "type": [
@@ -14054,6 +20052,16 @@
       "UpdatePipelineRequest": {
         "type": "object",
         "properties": {
+          "approval": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ApprovalPolicy"
+              }
+            ]
+          },
           "concurrency": {
             "oneOf": [
               {
@@ -14097,6 +20105,14 @@
               "string",
               "null"
             ]
+          },
+          "timeout_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
           },
           "trigger_config": {
             "oneOf": [
@@ -14284,6 +20300,16 @@
       "UpdateRunnerRequest": {
         "type": "object",
         "properties": {
+          "custom_labels": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Replaces the runner's operator labels. Detected labels are kept."
+          },
           "name": {
             "type": [
               "string",
@@ -14486,6 +20512,16 @@
       "ValidatePipelineRequest": {
         "type": "object",
         "properties": {
+          "approval": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ApprovalPolicy"
+              }
+            ]
+          },
           "concurrency": {
             "oneOf": [
               {
@@ -14523,6 +20559,14 @@
               "string",
               "null"
             ]
+          },
+          "timeout_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
           },
           "trigger_config": {
             "oneOf": [
@@ -14628,6 +20672,18 @@
       "description": "Pipeline configuration — build platforms, commands, triggers, concurrency."
     },
     {
+      "name": "Pipeline Publishing",
+      "description": "Store publishing settings. The runner uploads from its own host after a successful build."
+    },
+    {
+      "name": "Store Credentials",
+      "description": "App Store Connect API keys shared by every pipeline of the instance. Private keys are encrypted at rest and never returned."
+    },
+    {
+      "name": "Secrets",
+      "description": "Write-only secrets scoped to the instance, a project or a pipeline. Values are encrypted at rest, referenced as ${{ secrets.NAME }} and never returned."
+    },
+    {
       "name": "Pipeline Signing",
       "description": "Code signing configuration — Android keystores, iOS certificates/profiles."
     },
@@ -14636,12 +20692,20 @@
       "description": "Build lifecycle — queue, list, detail, cancel."
     },
     {
+      "name": "Releases",
+      "description": "Store releases — staged rollout records with pause, halt, resume, complete and approval."
+    },
+    {
       "name": "Runners",
       "description": "Build runner management — register, heartbeat, job claim/status."
     },
     {
       "name": "Build Logs",
       "description": "Build log ingestion and retrieval — append, paginated fetch, SSE streaming."
+    },
+    {
+      "name": "Events",
+      "description": "Live build, runner and release changes over SSE."
     },
     {
       "name": "Artifacts",

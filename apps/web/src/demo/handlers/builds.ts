@@ -5,7 +5,10 @@ import { ago } from '../seed'
 import { getDemoPersonaFromRequest, getDemoProjectRole } from '../personas'
 import { requireDemoProjectPermission } from '../authorization'
 import { demoState } from '../state'
+import { demoBuildInsights } from '../data/build-insights'
 import type { CreateBuildRequest } from '@oore/client/models'
+
+const approvalDecisionSchema = z.object({ reason: z.string().nullish() })
 
 const createBuildRequestSchema = z.toZod<CreateBuildRequest>()(
   z.object({
@@ -58,6 +61,23 @@ function withBuildContext(build: (typeof demoState.builds)[number]) {
       )?.name,
     },
   }
+}
+
+const RETRYABLE_STEPS = ['publish-play', 'publish-app-store']
+
+/** Uploads the demo can retry: the artifacts were stored and the upload did not succeed. */
+function demoRetryableSteps(build: (typeof demoState.builds)[number]) {
+  const steps = build.step_results ?? []
+  const terminal = ['succeeded', 'failed', 'canceled', 'timed_out'].includes(
+    build.status,
+  )
+  const stored = steps.some(
+    (step) => step.name === 'artifacts' && step.status === 'succeeded',
+  )
+  if (!terminal || !stored) return []
+  return RETRYABLE_STEPS.filter((name) =>
+    steps.some((step) => step.name === name && step.status !== 'succeeded'),
+  )
 }
 
 export const buildHandlers = [
@@ -137,6 +157,27 @@ export const buildHandlers = [
     const branch = url.searchParams.get('branch')
     if (branch) builds = builds.filter((b) => b.branch === branch)
 
+    // Mirrors the daemon's `q`: build number, branch, commit prefix, pipeline
+    // or project name.
+    const q = url.searchParams.get('q')?.trim().toLowerCase()
+    if (q) {
+      const number = /^#?\d+$/.test(q) ? Number(q.replace('#', '')) : null
+      builds = builds.filter(
+        (build) =>
+          build.build_number === number ||
+          build.branch?.toLowerCase().includes(q) ||
+          build.commit_sha?.toLowerCase().startsWith(q) ||
+          demoState.pipelines
+            .find((pipeline) => pipeline.id === build.pipeline_id)
+            ?.name.toLowerCase()
+            .includes(q) ||
+          demoState.projects
+            .find((project) => project.id === build.project_id)
+            ?.name.toLowerCase()
+            .includes(q),
+      )
+    }
+
     const sort = url.searchParams.get('sort')
     const direction = url.searchParams.get('direction') === 'asc' ? 1 : -1
     builds.sort((left, right) => {
@@ -177,6 +218,28 @@ export const buildHandlers = [
     })
   }),
 
+  demoApi.getBuildInsights(async ({ request }) => {
+    await delay(200)
+    const url = new URL(request.url)
+    const persona = getDemoPersonaFromRequest(request)
+    const projectId = url.searchParams.get('project_id')
+    const builds = demoState.builds.filter(
+      (build) =>
+        getDemoProjectRole(persona, build.project_id) &&
+        (!projectId || build.project_id === projectId),
+    )
+    return HttpResponse.json(
+      demoBuildInsights({
+        builds,
+        days: Number(url.searchParams.get('days') ?? 7),
+        now: ago(0),
+        offsetMinutes: Number(url.searchParams.get('utc_offset_minutes') ?? 0),
+        pipelines: demoState.pipelines,
+        projects: demoState.projects,
+      }),
+    )
+  }),
+
   demoApi.getBuild(async ({ params, request }) => {
     await delay(150)
     const persona = getDemoPersonaFromRequest(request)
@@ -189,6 +252,7 @@ export const buildHandlers = [
     }
     return HttpResponse.json({
       build: withBuildContext(build),
+      retryable_steps: demoRetryableSteps(build),
       events: demoState.buildEvents[build.id] ?? [
         {
           id: `evt-auto-${build.id}`,
@@ -291,6 +355,65 @@ export const buildHandlers = [
     return HttpResponse.json({ build: withBuildContext(build) })
   }),
 
+  ...(['approve', 'reject'] as const).map((decision) =>
+    demoApi[decision === 'approve' ? 'approveBuild' : 'rejectBuild'](
+      async ({ params, request }) => {
+        await delay(300)
+        const build = demoState.builds.find((b) => b.id === params.build_id)
+        if (!build) {
+          return HttpResponse.json(
+            { error: 'Build not found', code: 'not_found' },
+            { status: 404 },
+          )
+        }
+        const forbidden = requireDemoProjectPermission(
+          request,
+          build.project_id,
+          'builds:approve',
+        )
+        if (forbidden) return forbidden
+        if (build.status !== 'queued' || build.approval?.state !== 'pending') {
+          return HttpResponse.json(
+            {
+              error: 'This build is not waiting for approval',
+              code: 'not_awaiting_approval',
+            },
+            { status: 409 },
+          )
+        }
+        const persona = getDemoPersonaFromRequest(request)
+        const body = approvalDecisionSchema.parse(
+          await request.json().catch(() => ({})),
+        )
+        const reason = body.reason?.trim() || undefined
+        const approved = decision === 'approve'
+        build.approval = {
+          ...build.approval,
+          state: approved ? 'approved' : 'rejected',
+          decided_by: persona.email,
+          decided_at: ago(0),
+          reason,
+        }
+        build.updated_at = ago(0)
+        if (!approved) {
+          build.status = 'canceled'
+          build.finished_at = ago(0)
+        }
+        const verb = approved ? 'approved' : 'rejected'
+        ;(demoState.buildEvents[build.id] ??= []).push({
+          id: `evt-${build.id}-${verb}-${Date.now()}`,
+          build_id: build.id,
+          from_status: 'queued',
+          to_status: build.status,
+          actor: persona.email,
+          reason: `${verb} by ${persona.email}${reason ? `: ${reason}` : ''}`,
+          created_at: build.updated_at,
+        })
+        return HttpResponse.json({ build: withBuildContext(build) })
+      },
+    ),
+  ),
+
   demoApi.rerunBuild(async ({ params, request }) => {
     await delay(300)
     const build = demoState.builds.find(
@@ -343,6 +466,74 @@ export const buildHandlers = [
     )
   }),
 
+  demoApi.retryBuildStep(async ({ params, request }) => {
+    await delay(300)
+    const build = demoState.builds.find(
+      (candidate) => candidate.id === params.build_id,
+    )
+    if (!build) {
+      return HttpResponse.json(
+        { error: 'Build not found', code: 'not_found' },
+        { status: 404 },
+      )
+    }
+    const forbidden = requireDemoProjectPermission(
+      request,
+      build.project_id,
+      'builds:write',
+    )
+    if (forbidden) return forbidden
+    const { step } = z.object({ step: z.string() }).parse(await request.json())
+    const retryable = demoRetryableSteps(build)
+    const position = retryable.indexOf(step)
+    if (position < 0) {
+      return HttpResponse.json(
+        {
+          error: `${step} cannot be retried for this build`,
+          code: 'step_not_retryable',
+        },
+        { status: 409 },
+      )
+    }
+    const retry: (typeof demoState.builds)[number] = {
+      ...build,
+      id: `build-demo-retry-${crypto.randomUUID().slice(0, 8)}`,
+      build_number:
+        Math.max(
+          ...demoState.builds
+            .filter((candidate) => candidate.project_id === build.project_id)
+            .map((candidate) => candidate.build_number),
+        ) + 1,
+      status: 'queued',
+      trigger_type: 'manual',
+      trigger_event: 'retry',
+      source_build_id: build.id,
+      retry_steps: retryable.slice(position),
+      step_results: undefined,
+      runner_id: undefined,
+      started_at: undefined,
+      finished_at: undefined,
+      exit_code: undefined,
+      queued_at: ago(0),
+      created_at: ago(0),
+      updated_at: ago(0),
+    }
+    demoState.builds.unshift(retry)
+    demoState.buildEvents[retry.id] = [
+      {
+        id: `evt-${retry.id}-queued`,
+        build_id: retry.id,
+        to_status: 'queued',
+        reason: `retry of ${retry.retry_steps?.join(', ')} from build #${build.build_number}`,
+        created_at: retry.created_at,
+      },
+    ]
+    return HttpResponse.json(
+      { build: withBuildContext(retry) },
+      { status: 201 },
+    )
+  }),
+
   // Stream token — return 503 to trigger polling fallback in useLogStream
   demoApi.createStreamToken(async () => {
     await delay(100)
@@ -374,6 +565,22 @@ export const buildHandlers = [
       logs: filtered.slice(0, limit),
       total: allLogs.length,
     })
+  }),
+
+  demoApi.getBuildTestResults(async ({ params, request }) => {
+    await delay(150)
+    const buildId = String(params.build_id)
+    const persona = getDemoPersonaFromRequest(request)
+    const build = demoState.builds.find((candidate) => candidate.id === buildId)
+    if (!build || !getDemoProjectRole(persona, build.project_id)) {
+      return HttpResponse.json(
+        { error: 'Build not found', code: 'not_found' },
+        { status: 404 },
+      )
+    }
+    return HttpResponse.json(
+      demoState.buildTests[buildId] ?? { failures: [], history_window: 20 },
+    )
   }),
 
   demoApi.listArtifacts(async ({ params, request }) => {

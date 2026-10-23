@@ -13,8 +13,9 @@ import {
   resolveDataTableSorting,
 } from '@/components/data-table-features'
 import type { SortDirection } from '@/components/data-table-features'
-import { relativeTime } from '@/lib/format-utils'
-import { getIntegrationStatusVariant } from '@/lib/status-variants'
+import { formatEnumLabel, relativeTime } from '@/lib/format-utils'
+import { integrationStatusReason } from '@/lib/integration-status'
+import { StatusBadge } from '@/components/status-badge'
 import { Badge } from '@/components/ui/badge'
 
 export type IntegrationSort = 'name' | 'provider' | 'status' | 'updated_at'
@@ -40,7 +41,7 @@ function authModeLabel(mode: string): string {
     ['pat', 'Personal access token'],
     ['personal_token', 'Personal access token'],
   ])
-  return labels.get(mode) ?? mode.replace(/_/g, ' ')
+  return labels.get(mode) ?? formatEnumLabel(mode)
 }
 
 function sourceIdentity(integration: Integration) {
@@ -52,9 +53,6 @@ function sourceIdentity(integration: Integration) {
     >
       <span className="block truncate font-medium group-hover:underline">
         {integration.display_name ?? integration.provider}
-      </span>
-      <span className="block truncate font-mono text-[11px] text-muted-foreground">
-        {integration.id.slice(0, 8)}
       </span>
     </Link>
   )
@@ -83,11 +81,19 @@ const sourceColumns: Array<DataTableColumnDef<Integration>> = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Status" />
     ),
-    cell: ({ row }) => (
-      <Badge variant={getIntegrationStatusVariant(row.original.status)}>
-        {row.original.status}
-      </Badge>
-    ),
+    cell: ({ row }) => {
+      const reason = integrationStatusReason(row.original)
+      return (
+        <div className="flex min-w-0 flex-col items-start gap-1">
+          <StatusBadge kind="integration" value={row.original.status} />
+          {reason ? (
+            <span className="max-w-56 text-xs whitespace-normal text-muted-foreground">
+              {reason}
+            </span>
+          ) : null}
+        </div>
+      )
+    },
   },
   {
     accessorKey: 'auth_mode',
@@ -162,6 +168,7 @@ export function SourceInventory({
           placeholder: 'Search connected sources',
         }}
         pagination={{ onPageChange, page, pageSize, total }}
+        isLoading={isLoading}
         emptyMessage={isLoading ? 'Loading connected sources…' : undefined}
       />
     </div>

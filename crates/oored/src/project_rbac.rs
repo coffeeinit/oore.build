@@ -34,6 +34,12 @@ pub enum ProjectPermission {
     ReadArtifacts,
     WriteArtifacts,
     DeleteArtifacts,
+    /// Pause or halt a store release.
+    OperateRelease,
+    /// Create, raise, resume, complete or approve a store release.
+    ManageReleases,
+    /// Approve or reject a gated build, and change a pipeline's approval policy.
+    ApproveBuild,
 }
 
 // ── Resolution ──────────────────────────────────────────────────
@@ -138,6 +144,7 @@ fn role_has_permission(role: &ProjectRole, perm: ProjectPermission) -> bool {
                 | ProjectPermission::CancelBuild
                 | ProjectPermission::ReadArtifacts
                 | ProjectPermission::WriteArtifacts
+                | ProjectPermission::OperateRelease
         ),
         ProjectRole::Viewer => matches!(
             perm,

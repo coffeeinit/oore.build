@@ -8,9 +8,14 @@ import { useUpdateProject } from '@/hooks/use-projects'
 import { useSourceRepositories } from '@/hooks/use-source-repositories'
 import { isNearScrollEnd } from '@/lib/scroll'
 import RepositoryAvatar from '@/components/repository-avatar'
+import { FormActions } from '@/components/form-actions'
+import {
+  SettingsSection,
+  SettingsSurface,
+  SettingsSurfaceSeparator,
+} from '@/components/settings/settings-section'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import {
   Form,
   FormControl,
@@ -46,7 +51,7 @@ export function ProjectSettingsForm({
 }: {
   canChangeSource: boolean
   projectId: string
-  currentValues: EditProjectForm
+  currentValues: EditProjectForm & { repository_full_name?: string }
 }) {
   const updateMutation = useUpdateProject()
   const repositoriesQuery = useSourceRepositories(canChangeSource)
@@ -65,6 +70,8 @@ export function ProjectSettingsForm({
     },
     mode: 'onBlur',
   })
+
+  const { isDirty } = form.formState
 
   function onSubmit(data: EditProjectForm) {
     updateMutation.mutate(
@@ -89,10 +96,16 @@ export function ProjectSettingsForm({
   }
 
   return (
-    <Card>
-      <CardContent>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+    <Form {...form}>
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="flex flex-col gap-8"
+      >
+        <SettingsSection
+          title="General"
+          description="How this project appears across Oore and the repository it builds from."
+        >
+          <SettingsSurface className="flex flex-col gap-4">
             <FormField
               control={form.control}
               name="name"
@@ -106,6 +119,38 @@ export function ProjectSettingsForm({
                 </FormItem>
               )}
             />
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <SettingsSurfaceSeparator />
+            <FormField
+              control={form.control}
+              name="default_branch"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Default branch</FormLabel>
+                  <FormControl>
+                    <Input {...field} className="font-mono" />
+                  </FormControl>
+                  <FormDescription>
+                    Preselected when you run a build and used to discover
+                    checked-in workflows.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <SettingsSurfaceSeparator />
             {canChangeSource ? (
               <FormField
                 control={form.control}
@@ -144,8 +189,8 @@ export function ProjectSettingsForm({
                         items={repositoryItems}
                       >
                         <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Choose source" />
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Choose a repository" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent
@@ -177,14 +222,20 @@ export function ProjectSettingsForm({
                         </SelectContent>
                       </Select>
                     ) : (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        render={<Link to="/settings/integrations" />}
-                        nativeButton={false}
-                      >
-                        Connect source
-                      </Button>
+                      <div className="flex flex-col items-start gap-2">
+                        <p className="text-sm text-muted-foreground">
+                          No source is connected yet. Connect GitHub, GitLab or
+                          a local folder first.
+                        </p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          render={<Link to="/settings/integrations" />}
+                          nativeButton={false}
+                        >
+                          Connect source
+                        </Button>
+                      </div>
                     )}
                     <FormDescription>
                       Choosing the source trusts its build commands to run with
@@ -211,48 +262,35 @@ export function ProjectSettingsForm({
                   </FormItem>
                 )}
               />
-            ) : null}
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Description</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+            ) : (
+              <div className="flex flex-col gap-1.5 text-sm">
+                <p className="font-medium">Source repository</p>
+                <p>
+                  {currentValues.repository_full_name ? (
+                    <span className="font-medium">
+                      {currentValues.repository_full_name}
+                    </span>
+                  ) : (
+                    'No repository connected.'
+                  )}{' '}
+                  <span className="text-muted-foreground">
+                    Only an owner or admin can change the source.
+                  </span>
+                </p>
+              </div>
+            )}
+            <SettingsSurfaceSeparator />
+            <FormActions
+              isPending={updateMutation.isPending}
+              disabled={!isDirty}
+              disabledReason="No changes to save"
+              onCancel={isDirty ? () => form.reset() : undefined}
+              cancelLabel="Discard"
+              submitLabel="Save changes"
             />
-            <FormField
-              control={form.control}
-              name="default_branch"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Default Branch</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <div className="flex justify-end">
-              <Button type="submit" disabled={updateMutation.isPending}>
-                {updateMutation.isPending ? (
-                  <>
-                    <Spinner className="size-4" />
-                    Saving...
-                  </>
-                ) : (
-                  'Save'
-                )}
-              </Button>
-            </div>
-          </form>
-        </Form>
-      </CardContent>
-    </Card>
+          </SettingsSurface>
+        </SettingsSection>
+      </form>
+    </Form>
   )
 }

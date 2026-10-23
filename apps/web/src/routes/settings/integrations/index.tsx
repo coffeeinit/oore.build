@@ -90,7 +90,7 @@ const PROVIDERS = [
     heading: 'Token scopes',
     items: [
       'Use read_user, read_api, and read_repository.',
-      'Avoid full api unless a write feature needs it.',
+      'Use api instead of read_api to show statuses on merge requests.',
     ],
   },
 ]
@@ -114,9 +114,13 @@ function parseSearch(search: SearchInput): IntegrationsSearch {
 
 export const Route = createFileRoute('/settings/integrations/')({
   validateSearch: parseSearch,
-  beforeLoad: () => {
+  beforeLoad: (context) => {
     const instance = getActiveInstanceOrRedirect()
-    requireInstanceRoleOrRedirect(instance.id, ['owner', 'admin', 'developer'])
+    requireInstanceRoleOrRedirect(
+      instance.id,
+      ['owner', 'admin', 'developer'],
+      context,
+    )
   },
   component: IntegrationsPage,
 })

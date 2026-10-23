@@ -74,9 +74,9 @@ export const Route = createFileRoute('/settings/users')({
     },
   },
   validateSearch: parseUsersSearch,
-  beforeLoad: () => {
+  beforeLoad: (context) => {
     const instance = getActiveInstanceOrRedirect()
-    requireInstanceRoleOrRedirect(instance.id, ['owner', 'admin'])
+    requireInstanceRoleOrRedirect(instance.id, ['owner', 'admin'], context)
   },
   component: UsersSettingsPage,
 })
@@ -277,21 +277,20 @@ function UsersSettingsPage() {
         }
       />
 
-      {!usersQuery.error ? (
-        <UsersToolbar
-          table={table}
-          onBulkDisable={(userIds) =>
-            setConfirmAction({
-              type: 'bulk_disable',
-              userId: '',
-              userEmail: '',
-              userIds,
-            })
-          }
-        />
-      ) : null}
-
       <UsersCollection
+        toolbar={
+          <UsersToolbar
+            table={table}
+            onBulkDisable={(userIds) =>
+              setConfirmAction({
+                type: 'bulk_disable',
+                userId: '',
+                userEmail: '',
+                userIds,
+              })
+            }
+          />
+        }
         emptyState={
           <UsersEmptyState
             onClearSearch={() =>

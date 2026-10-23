@@ -13,9 +13,11 @@ import {
 } from '@/hooks/use-retention'
 import PageLayout from '@/components/page-layout'
 import PageHeader from '@/components/page-header'
+import { FormActions } from '@/components/form-actions'
 import {
   SettingsSection,
   SettingsSurface,
+  SettingsSurfaceSeparator,
 } from '@/components/settings/settings-section'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -40,8 +42,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Spinner } from '@/components/ui/spinner'
-import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { RetentionSummaryCard } from './-retention-summary-card'
 
@@ -142,7 +142,7 @@ function EnabledRetentionFields({
             name="max_artifact_size_mb"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Max artifact size (MB)</FormLabel>
+                <FormLabel>Max artifact storage per project (MB)</FormLabel>
                 <FormControl>
                   <Input
                     type="number"
@@ -151,7 +151,10 @@ function EnabledRetentionFields({
                     {...field}
                   />
                 </FormControl>
-                <FormDescription>Per-project artifact size cap</FormDescription>
+                <FormDescription>
+                  Oldest builds are cleaned up once a project&apos;s artifacts
+                  exceed this
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
@@ -159,7 +162,7 @@ function EnabledRetentionFields({
         </div>
       </SettingsSection>
 
-      <Separator className="-mx-4 w-auto sm:-mx-5" />
+      <SettingsSurfaceSeparator />
 
       <SettingsSection
         title="Cleanup behavior"
@@ -178,7 +181,7 @@ function EnabledRetentionFields({
                   items={CLEANUP_TARGETS}
                 >
                   <FormControl>
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full">
                       <SelectValue />
                     </SelectTrigger>
                   </FormControl>
@@ -212,7 +215,7 @@ function EnabledRetentionFields({
                   items={CLEANUP_INTERVAL_OPTIONS}
                 >
                   <FormControl>
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full">
                       <SelectValue />
                     </SelectTrigger>
                   </FormControl>
@@ -234,7 +237,7 @@ function EnabledRetentionFields({
         </div>
       </SettingsSection>
 
-      <Separator className="-mx-4 w-auto sm:-mx-5" />
+      <SettingsSurfaceSeparator />
 
       <SettingsSection
         title="Protected statuses"
@@ -273,7 +276,7 @@ function EnabledRetentionFields({
         />
       </SettingsSection>
 
-      <Separator className="-mx-4 w-auto sm:-mx-5" />
+      <SettingsSurfaceSeparator />
 
       <SettingsSection
         title="Dry run"
@@ -380,10 +383,14 @@ function RetentionPage() {
         keep_statuses: values.keep_statuses,
         dry_run: values.dry_run,
         cleanup_interval_secs: Number(values.cleanup_interval_secs),
+        // The daemon replaces the whole policy, so keep settings this form
+        // does not show.
+        artifact_ttl_days: policy?.artifact_ttl_days,
       },
       {
         onSuccess: () => {
           toast.success('Retention policy updated')
+          form.reset(values)
         },
         onError: (error) => {
           const message = isOoreApiError(error)
@@ -485,22 +492,18 @@ function RetentionPage() {
 
             {enabled ? (
               <>
-                <Separator className="-mx-4 w-auto sm:-mx-5" />
+                <SettingsSurfaceSeparator />
                 <EnabledRetentionFields form={form} />
               </>
             ) : null}
-
-            <Separator className="-mx-4 w-auto sm:-mx-5" />
-
-            <div className="flex justify-end">
-              <Button type="submit" disabled={updateMutation.isPending}>
-                {updateMutation.isPending ? (
-                  <Spinner data-icon="inline-start" />
-                ) : null}
-                Save policy
-              </Button>
-            </div>
           </SettingsSurface>
+          <FormActions
+            className="mt-4"
+            disabled={!form.formState.isDirty}
+            disabledReason="No changes to save"
+            isPending={updateMutation.isPending}
+            submitLabel="Save changes"
+          />
         </form>
       </Form>
     </PageLayout>

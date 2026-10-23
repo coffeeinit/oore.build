@@ -4,7 +4,6 @@ import {
   CommandLineIcon,
   DashboardSquare02Icon,
   Folder02Icon,
-  Settings01Icon,
 } from '@hugeicons/core-free-icons'
 import {
   SidebarGroup,
@@ -17,6 +16,7 @@ import {
 } from '@/components/ui/sidebar'
 import { useAuthStore } from '@/stores/auth-store'
 import { useBuilds } from '@/hooks/use-builds'
+import { settingsGroupsForRole } from '@/components/settings/settings-navigation'
 import type { UserRole } from '@oore/client/models'
 
 interface NavItem {
@@ -30,23 +30,33 @@ interface NavGroup {
   items: Array<NavItem>
 }
 
-const WORKSPACE_ITEMS: Array<NavItem> = [
+export const WORKSPACE_ITEMS: Array<NavItem> = [
   { title: 'Home', to: '/', icon: DashboardSquare02Icon },
   { title: 'Projects', to: '/projects', icon: Folder02Icon },
   { title: 'Builds', to: '/builds', icon: CommandLineIcon },
 ]
 
+/**
+ * Settings pages are listed directly so every one is a single click away;
+ * there is no hub page in between. The list is role-filtered by the same
+ * table the command palette uses.
+ */
 export function sidebarGroupsForRole(
   role: UserRole | undefined,
 ): Array<NavGroup> {
   if (!role || role === 'qa_viewer') return []
 
+  const settingsItems = settingsGroupsForRole(role).flatMap((group) =>
+    group.items.map((item) => ({
+      title: item.title,
+      to: item.to,
+      icon: item.icon,
+    })),
+  )
+
   return [
     { title: 'Workspace', items: WORKSPACE_ITEMS },
-    {
-      title: 'Settings',
-      items: [{ title: 'Settings', to: '/settings', icon: Settings01Icon }],
-    },
+    { title: 'Settings', items: settingsItems },
   ]
 }
 
@@ -59,11 +69,14 @@ export function isSidebarItemActive(pathname: string, to: string): boolean {
   return normalizedPathname === to || normalizedPathname.startsWith(`${to}/`)
 }
 
+/** Builds a runner holds now, counted the way Home's Waiting now card does. */
 function ActiveBuildBadge() {
-  const { data } = useBuilds({ status: 'running', limit: 1 })
+  const { data } = useBuilds({ status: 'assigned,running', limit: 1 })
   const count = data?.total ?? 0
   if (count === 0) return null
-  return <SidebarMenuBadge>{count}</SidebarMenuBadge>
+  return (
+    <SidebarMenuBadge aria-label={`${count} running`}>{count}</SidebarMenuBadge>
+  )
 }
 
 export default function NavMain() {

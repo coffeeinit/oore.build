@@ -2,8 +2,7 @@ import { lazy, Suspense, useState } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
-  ArrowDown01Icon,
-  ArrowRight01Icon,
+  Add01Icon,
   Delete02Icon,
   InformationCircleIcon,
   PlayIcon,
@@ -29,38 +28,33 @@ import { relativeTime } from '@/lib/format-utils'
 import { isOoreApiError } from '@oore/client/client'
 import { PageMeta } from '@/lib/seo'
 import { BUILD_STATUS_FILTER_OPTIONS } from '@/lib/status-variants'
-import type { ListBuildsResponse } from '@oore/client/models'
 import type { SortDirection } from '@/components/data-table-features'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+import ConfirmDialog from '@/components/ConfirmDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { DangerZone } from '@/components/danger-zone'
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
+  SettingsSection,
+  SettingsSurface,
+} from '@/components/settings/settings-section'
 import PageHeader from '@/components/page-header'
 import PageLayout from '@/components/page-layout'
+import { NotFoundState } from '@/components/root-route-boundaries'
+import { ResumeRunnersButton } from '@/components/settings/direct-runner-policy-panel'
 import RepositoryAvatar from '@/components/repository-avatar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ProjectPipelinesTab } from './-project-pipelines-tab'
+import {
+  EMPTY_LAST_BUILD_BY_PIPELINE,
+  selectProjectBuildSummary,
+} from './-project-build-summary'
 import { useFirstAppScope, useFirstAppStore } from '@/stores/first-app-store'
 
 const ProjectOverview = lazy(() => import('./-project-overview'))
 
-const FirstAppProgress = lazy(() => import('@/components/first-app-progress'))
+const SetupChecklist = lazy(() => import('@/components/setup-checklist'))
 
 import type { ProjectBuildSort } from './-project-build-sort'
 
@@ -75,6 +69,11 @@ const loadProjectSettingsForm = () => import('./-project-settings-form')
 const ProjectSettingsForm = lazy(() =>
   loadProjectSettingsForm().then((module) => ({
     default: module.ProjectSettingsForm,
+  })),
+)
+const ProjectSecretsPanel = lazy(() =>
+  import('@/components/secrets/secrets-panel').then((module) => ({
+    default: module.SecretsPanel,
   })),
 )
 const loadProjectAccessCard = () => import('./-project-access-card')
@@ -93,6 +92,7 @@ interface ProjectDetailSearch {
   direction?: SortDirection
   page?: number
   pageSize?: 20 | 50 | 100
+  pipeline?: string
   q?: string
   sort?: ProjectBuildSort
   status?: string
@@ -111,34 +111,12 @@ const PROJECT_BUILD_SORT_VALUES = new Set<ProjectBuildSort>([
   'branch',
 ])
 
-const EMPTY_LAST_BUILD_BY_PIPELINE = new Map<
-  string,
-  { status: string; time: number }
->()
-
-function selectProjectBuildSummary({ builds, total }: ListBuildsResponse) {
-  const lastBuildByPipeline = new Map<
-    string,
-    { status: string; time: number }
-  >()
-
-  for (const build of builds) {
-    if (build.pipeline_id && !lastBuildByPipeline.has(build.pipeline_id)) {
-      lastBuildByPipeline.set(build.pipeline_id, {
-        status: build.status,
-        time: build.queued_at,
-      })
-    }
-  }
-
-  return { buildCount: total, lastBuildByPipeline, builds }
-}
-
 function validateProjectSearch(search: SearchInput): ProjectDetailSearch {
   const tab = searchString(search, 'tab')
   const page = searchNumber(search, 'page')
   const pageSize = searchNumber(search, 'pageSize')
   const q = searchString(search, 'q')?.trim() ?? ''
+  const pipeline = searchString(search, 'pipeline')?.trim() ?? ''
   const statusValue = searchString(search, 'status')
   const status =
     statusValue && statusValue in BUILD_STATUS_FILTER_OPTIONS ? statusValue : ''
@@ -153,6 +131,7 @@ function validateProjectSearch(search: SearchInput): ProjectDetailSearch {
     run: searchNumber(search, 'run') === 1 ? '1' : undefined,
     runPipeline: searchString(search, 'runPipeline'),
     q: q || undefined,
+    pipeline: pipeline || undefined,
     status: status && status !== 'all' ? status : undefined,
     sort,
     direction: searchString(search, 'direction') === 'asc' ? 'asc' : undefined,
@@ -176,9 +155,13 @@ function validateProjectSearch(search: SearchInput): ProjectDetailSearch {
 
 export const Route = createFileRoute('/projects/$projectId/')({
   validateSearch: validateProjectSearch,
-  beforeLoad: () => {
+  beforeLoad: (context) => {
     const instance = getActiveInstanceOrRedirect()
-    requireInstanceRoleOrRedirect(instance.id, ['owner', 'admin', 'developer'])
+    requireInstanceRoleOrRedirect(
+      instance.id,
+      ['owner', 'admin', 'developer'],
+      context,
+    )
   },
   component: ProjectDetailPage,
 })
@@ -253,7 +236,6 @@ function ProjectDetailPage() {
   })
 
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const [dangerOpen, setDangerOpen] = useState(false)
   const [buildDrawerPipelineId, setBuildDrawerPipelineId] = useState<
     string | null
   >()
@@ -295,7 +277,19 @@ function ProjectDetailPage() {
   }
 
   if (error) {
-    const notFound = isOoreApiError(error) && error.status === 404
+    if (isOoreApiError(error) && error.status === 404) {
+      return (
+        <PageLayout width="wide">
+          <PageMeta title="Project not found" noindex />
+          <NotFoundState
+            title="Project not found"
+            description="This project was deleted, expired, or the link is wrong."
+            backTo="/projects"
+            backLabel="Back to projects"
+          />
+        </PageLayout>
+      )
+    }
 
     return (
       <PageLayout width="wide">
@@ -303,28 +297,23 @@ function ProjectDetailPage() {
         <Alert variant="destructive">
           <HugeiconsIcon icon={InformationCircleIcon} size={16} />
           <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <span>
-              {notFound
-                ? 'This project was not found or is no longer available.'
-                : `Failed to load project: ${error.message}`}
-            </span>
+            <span>Failed to load project: {error.message}</span>
             <span className="flex gap-2">
               <Button
                 variant="outline"
                 size="sm"
                 render={<Link to="/projects" />}
+                nativeButton={false}
               >
                 Back to projects
               </Button>
-              {!notFound ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void projectQuery.refetch()}
-                >
-                  Retry
-                </Button>
-              ) : null}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void projectQuery.refetch()}
+              >
+                Retry
+              </Button>
             </span>
           </AlertDescription>
         </Alert>
@@ -374,10 +363,74 @@ function ProjectDetailPage() {
     setBuildDrawerPipelineId(pipelineId ?? null)
   }
 
-  const DangerIcon = dangerOpen ? ArrowDown01Icon : ArrowRight01Icon
+  // The checklist lives at the top of Overview while the project is being set
+  // up. It never sits above the tabs, so switching tabs moves nothing.
+  const showSetup = buildCount === 0 || guidedProjectId === projectId
+  const canRunBuild = canTriggerBuild && projectHasSource && pipelineCount > 0
+
+  // One primary action, chosen by where the project is: connect a repository,
+  // add the first pipeline, or run a build. Never a disabled button with a
+  // tooltip explaining why.
+  const headerAction = canRunBuild ? (
+    <Suspense
+      fallback={
+        <Button disabled>
+          <HugeiconsIcon icon={PlayIcon} />
+          Run build
+        </Button>
+      }
+    >
+      <TriggerBuildDrawer
+        fixedProjectId={projectId}
+        defaultPipelineId={
+          search.runPipeline ?? buildDrawerPipelineId ?? pipelines[0]?.id
+        }
+        open={search.run === '1' || buildDrawerPipelineId !== undefined}
+        onOpenChange={(open) => {
+          if (!open && search.run)
+            void navigate({
+              search: (previous) => ({
+                ...previous,
+                run: undefined,
+                runPipeline: undefined,
+              }),
+              replace: true,
+            })
+          setBuildDrawerPipelineId(
+            open ? (buildDrawerPipelineId ?? null) : undefined,
+          )
+        }}
+        defaultBranch={project.default_branch ?? undefined}
+        description="Choose a pipeline and branch to build."
+        onBuildCreated={(buildId) => {
+          void navigate({
+            to: '/builds/$buildId',
+            params: { buildId },
+          })
+        }}
+      >
+        <Button>
+          <HugeiconsIcon icon={PlayIcon} />
+          Run build
+        </Button>
+      </TriggerBuildDrawer>
+    </Suspense>
+  ) : !project.repository_id && canWriteInstanceSettings ? (
+    <Button onClick={() => setTab('settings')}>Connect repository</Button>
+  ) : projectHasSource && pipelineCount === 0 && canWritePipelines ? (
+    <Button
+      nativeButton={false}
+      render={
+        <Link to="/projects/$projectId/pipelines/new" params={{ projectId }} />
+      }
+    >
+      <HugeiconsIcon icon={Add01Icon} />
+      Add pipeline
+    </Button>
+  ) : undefined
 
   return (
-    <PageLayout width="wide" fill={activeTab === 'builds'}>
+    <PageLayout width="wide" fill>
       <PageMeta title={label} noindex />
       <PageHeader
         title={project.name}
@@ -403,77 +456,17 @@ function ProjectDetailPage() {
             <span>Updated {relativeTime(project.updated_at)}</span>
           </>
         }
-        actions={
-          canTriggerBuild ? (
-            <span
-              title={
-                pipelineCount === 0
-                  ? 'Add a pipeline first before running builds'
-                  : !projectHasSource
-                    ? 'Connect a source repository first'
-                    : undefined
-              }
-            >
-              <Suspense
-                fallback={
-                  <Button disabled>
-                    <HugeiconsIcon icon={PlayIcon} />
-                    Run build
-                  </Button>
-                }
-              >
-                <TriggerBuildDrawer
-                  fixedProjectId={projectId}
-                  defaultPipelineId={
-                    search.runPipeline ??
-                    buildDrawerPipelineId ??
-                    pipelines[0]?.id
-                  }
-                  open={
-                    search.run === '1' || buildDrawerPipelineId !== undefined
-                  }
-                  onOpenChange={(open) => {
-                    if (!open && search.run)
-                      void navigate({
-                        search: (previous) => ({
-                          ...previous,
-                          run: undefined,
-                          runPipeline: undefined,
-                        }),
-                        replace: true,
-                      })
-                    setBuildDrawerPipelineId(
-                      open ? (buildDrawerPipelineId ?? null) : undefined,
-                    )
-                  }}
-                  defaultBranch={project.default_branch ?? undefined}
-                  description="Choose a pipeline and branch to build."
-                  onBuildCreated={(buildId) => {
-                    void navigate({
-                      to: '/builds/$buildId',
-                      params: { buildId },
-                    })
-                  }}
-                >
-                  <Button disabled={pipelineCount === 0 || !projectHasSource}>
-                    <HugeiconsIcon icon={PlayIcon} />
-                    Run build
-                  </Button>
-                </TriggerBuildDrawer>
-              </Suspense>
-            </span>
-          ) : undefined
-        }
+        actions={headerAction}
       />
-      {!project.repository_id ? (
-        <Alert variant="destructive">
+      {!project.repository_id && !showSetup ? (
+        <Alert>
           <HugeiconsIcon icon={InformationCircleIcon} size={16} />
           <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <span>
-              This project has no linked source repository.{' '}
+              This project has no repository.{' '}
               {canWriteInstanceSettings
-                ? 'Choose a source before triggering builds.'
-                : 'Ask an owner or admin to choose one before triggering builds.'}
+                ? 'Connect one before running builds.'
+                : 'Ask an owner or admin to connect one before running builds.'}
             </span>
             {canWriteInstanceSettings ? (
               <Button
@@ -481,7 +474,7 @@ function ProjectDetailPage() {
                 variant="outline"
                 onClick={() => setTab('settings')}
               >
-                Choose source
+                Connect repository
               </Button>
             ) : null}
           </AlertDescription>
@@ -493,21 +486,24 @@ function ProjectDetailPage() {
           <AlertDescription>
             {runnerPolicyBlockReason === 'instance_paused' ? (
               canWriteInstanceSettings ? (
-                <>
-                  Direct macOS runner is paused. Builds can be queued, but they
-                  will not start until you resume it in{' '}
-                  <Link
-                    to="/settings/preferences"
-                    className="font-medium underline underline-offset-4"
-                  >
-                    Preferences
-                  </Link>
-                  .
-                </>
+                <span className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <span>
+                    Runners are paused on{' '}
+                    <Link
+                      to="/settings/runners"
+                      className="font-medium underline underline-offset-4"
+                    >
+                      Runners
+                    </Link>
+                    . Builds can be queued, but they will not start until you
+                    resume them.
+                  </span>
+                  <ResumeRunnersButton />
+                </span>
               ) : (
                 <>
-                  Direct macOS runner is paused. Builds can be queued, but they
-                  will not start. Ask an owner or admin to resume it.
+                  Runners are paused. Builds can be queued, but they will not
+                  start. Ask an owner or admin to resume them.
                 </>
               )
             ) : (
@@ -534,20 +530,13 @@ function ProjectDetailPage() {
         </Alert>
       ) : null}
 
-      {(activeTab === 'overview' || activeTab === 'pipelines') &&
-      (buildCount === 0 || guidedProjectId === projectId) ? (
-        <Suspense fallback={<Skeleton className="h-40 w-full" />}>
-          <FirstAppProgress projectId={projectId} />
-        </Suspense>
-      ) : null}
-
       <Tabs
         value={activeTab}
         onValueChange={(value) => {
           const tabValue = TAB_VALUES.find((candidate) => candidate === value)
           if (tabValue) setTab(tabValue)
         }}
-        className={activeTab === 'builds' ? 'min-h-0 flex-1' : undefined}
+        className="min-h-0 flex-1"
       >
         <TabsList variant="line">
           <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -568,9 +557,17 @@ function ProjectDetailPage() {
                 projectId={projectId}
                 projectName={project.name}
                 builds={buildSummary?.builds ?? []}
+                lastBuildByPipeline={lastBuildByPipeline}
+                // The Pipelines tab's search and page share this query.
+                pipelines={
+                  search.pipelineQ || pipelinePage > 1 ? [] : pipelines
+                }
                 loading={buildSummaryQuery.isLoading}
                 error={buildSummaryQuery.error}
                 onRetry={() => void buildSummaryQuery.refetch()}
+                setup={
+                  showSetup ? <SetupChecklist projectId={projectId} /> : null
+                }
               />
             </Suspense>
           ) : null}
@@ -633,14 +630,10 @@ function ProjectDetailPage() {
           </Suspense>
         ) : null}
 
-        {/* ---- Settings tab ---- */}
         <TabsContent value="settings">
-          <div className="space-y-4 pt-2">
+          <div className="flex flex-col gap-8 pt-2">
             {activeTab === 'settings' ? (
               <Suspense fallback={<Skeleton className="h-48 w-full" />}>
-                {canManageAccess ? (
-                  <ProjectAccessCard projectId={projectId} />
-                ) : null}
                 {canWriteProjects ? (
                   <ProjectSettingsForm
                     canChangeSource={canWriteInstanceSettings}
@@ -650,70 +643,79 @@ function ProjectDetailPage() {
                       description: project.description ?? undefined,
                       default_branch: project.default_branch ?? undefined,
                       repository_id: project.repository_id ?? undefined,
+                      repository_full_name:
+                        project.repository_full_name ?? undefined,
                     }}
                   />
                 ) : (
-                  <Card size="sm">
-                    <CardContent className="text-sm text-muted-foreground">
-                      You do not have permission to edit this project.
-                    </CardContent>
-                  </Card>
+                  <SettingsSection
+                    title="General"
+                    description="Only project maintainers can change these."
+                  >
+                    <SettingsSurface>
+                      <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-[10rem_1fr]">
+                        <dt className="text-muted-foreground">Name</dt>
+                        <dd>{project.name}</dd>
+                        <dt className="text-muted-foreground">Description</dt>
+                        <dd>{project.description || 'None'}</dd>
+                        <dt className="text-muted-foreground">
+                          Default branch
+                        </dt>
+                        <dd className="font-mono">
+                          {project.default_branch || 'Not set'}
+                        </dd>
+                        <dt className="text-muted-foreground">Repository</dt>
+                        <dd>
+                          {project.repository_full_name || 'Not connected'}
+                        </dd>
+                      </dl>
+                    </SettingsSurface>
+                  </SettingsSection>
                 )}
+                {canManageAccess ? (
+                  <ProjectAccessCard projectId={projectId} />
+                ) : null}
+                <ProjectSecretsPanel
+                  canWrite={canWritePipelines}
+                  inheritedFrom={
+                    canReadInstanceSettings ? [{ scope: 'instance' }] : []
+                  }
+                  target={{ scope: 'project', projectId }}
+                  title="Project secrets"
+                />
               </Suspense>
             ) : null}
 
             {canDeleteProjects ? (
-              <Collapsible open={dangerOpen} onOpenChange={setDangerOpen}>
-                <Card size="sm" className="ring-destructive/40">
-                  <CardContent>
-                    <CollapsibleTrigger className="flex w-full items-center justify-between text-sm font-medium text-destructive">
-                      Danger zone
-                      <HugeiconsIcon
-                        icon={DangerIcon}
-                        className="size-4 text-muted-foreground"
-                        aria-hidden
-                      />
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <div className="space-y-3 pt-4">
-                        <p className="text-sm text-muted-foreground">
-                          Permanently delete "{project.name}" and all associated
-                          pipelines and builds. This cannot be undone.
-                        </p>
-                        <Button
-                          variant="destructive"
-                          onClick={() => setDeleteOpen(true)}
-                        >
-                          <HugeiconsIcon icon={Delete02Icon} />
-                          Delete project
-                        </Button>
-                      </div>
-                    </CollapsibleContent>
-                  </CardContent>
-                </Card>
-              </Collapsible>
+              <DangerZone
+                title="Delete this project"
+                description={`Permanently deletes "${project.name}" and all associated pipelines and builds. This cannot be undone.`}
+                action={
+                  <Button
+                    variant="destructive"
+                    onClick={() => setDeleteOpen(true)}
+                  >
+                    <HugeiconsIcon icon={Delete02Icon} />
+                    Delete project
+                  </Button>
+                }
+              />
             ) : null}
           </div>
         </TabsContent>
       </Tabs>
 
-      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete project?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete "{project.name}" and all associated
-              pipelines and builds. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete}>
-              {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Delete project?"
+        description={`This will permanently delete "${project.name}" and all associated pipelines and builds. This action cannot be undone.`}
+        confirmLabel="Delete project"
+        confirmVariant="destructive"
+        isPending={deleteMutation.isPending}
+        pendingLabel="Deleting..."
+        onConfirm={handleDelete}
+      />
     </PageLayout>
   )
 }

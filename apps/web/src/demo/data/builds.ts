@@ -94,6 +94,25 @@ export const demoBuilds: Array<Build> = [
     updated_at: ago(60),
   },
 
+  // ── Build waiting for approval ────────────────────────────────
+  {
+    id: BUILD_IDS.awaitingApproval1,
+    project_id: PROJECT_IDS.flutterShop,
+    pipeline_id: PIPELINE_IDS.shopIos,
+    build_number: 144,
+    status: 'queued',
+    trigger_type: 'webhook',
+    trigger_actor: 'octocat',
+    trigger_event: 'tag_push',
+    trigger_ref: 'v2.4.0',
+    commit_sha: 'c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3',
+    approval: { state: 'pending', requested_at: ago(240) },
+    config_snapshot: {},
+    queued_at: ago(240),
+    created_at: ago(240),
+    updated_at: ago(240),
+  },
+
   // ── Succeeded builds ──────────────────────────────────────────
   {
     id: BUILD_IDS.succeeded1,
@@ -230,6 +249,60 @@ export const demoBuilds: Array<Build> = [
 
   // ── Failed builds ─────────────────────────────────────────────
   {
+    id: BUILD_IDS.failedPublish1,
+    project_id: PROJECT_IDS.flutterShop,
+    pipeline_id: PIPELINE_IDS.shopAndroid,
+    build_number: 141,
+    status: 'failed',
+    trigger_type: 'webhook',
+    trigger_event: 'push',
+    trigger_ref: 'refs/heads/main',
+    commit_sha: 'b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6',
+    branch: 'main',
+    config_snapshot: {},
+    runner_id: RUNNER_IDS.macStudio,
+    step_results: [
+      {
+        name: 'checkout',
+        status: 'succeeded',
+        exit_code: 0,
+        started_at: ago(3600),
+        finished_at: ago(3590),
+        duration_ms: 10000,
+      },
+      {
+        name: 'flutter build appbundle --release',
+        status: 'succeeded',
+        exit_code: 0,
+        started_at: ago(3590),
+        finished_at: ago(3020),
+        duration_ms: 570000,
+      },
+      {
+        name: 'artifacts',
+        status: 'succeeded',
+        exit_code: 0,
+        started_at: ago(3020),
+        finished_at: ago(3000),
+        duration_ms: 20000,
+      },
+      {
+        name: 'publish-play',
+        status: 'failed',
+        exit_code: 1,
+        started_at: ago(3000),
+        finished_at: ago(2990),
+        duration_ms: 10000,
+      },
+    ],
+    exit_code: 1,
+    queued_at: ago(3620),
+    started_at: ago(3600),
+    finished_at: ago(2990),
+    created_at: ago(3620),
+    updated_at: ago(2990),
+  },
+  {
     id: BUILD_IDS.failed1,
     project_id: PROJECT_IDS.nativePayments,
     pipeline_id: PIPELINE_IDS.paymentsAll,
@@ -251,7 +324,7 @@ export const demoBuilds: Array<Build> = [
         duration_ms: 60000,
       },
       {
-        name: 'flutter analyze',
+        name: 'flutter test',
         status: 'failed',
         exit_code: 1,
         started_at: ago(43140),
@@ -518,15 +591,26 @@ for (const [projectIndex, app] of demoBuildHistoryApps.entries()) {
         status === 'succeeded' ? 0 : status === 'failed' ? 1 : undefined,
       queued_at: ago(age),
       started_at: ago(age - 60),
-      finished_at: ago(age - 420),
+      // Run times vary between about 5 and 11 minutes.
+      finished_at: ago(age - 360 - ((index * 97 + projectIndex * 61) % 340)),
       created_at: ago(age),
-      updated_at: ago(age - 420),
+      updated_at: ago(age - 360 - ((index * 97 + projectIndex * 61) % 340)),
     })
   }
 }
 
 // ── Build events for detail views ───────────────────────────────
 export const demoBuildEvents = {
+  [BUILD_IDS.awaitingApproval1]: [
+    {
+      id: 'evt-approval-001',
+      build_id: BUILD_IDS.awaitingApproval1,
+      to_status: 'queued',
+      actor: 'octocat',
+      reason: 'webhook: tag_push; waiting for approval',
+      created_at: ago(240),
+    },
+  ],
   [BUILD_IDS.running1]: [
     {
       id: 'evt-001',
@@ -586,7 +670,7 @@ export const demoBuildEvents = {
       build_id: BUILD_IDS.failed1,
       from_status: 'running',
       to_status: 'failed',
-      reason: 'flutter analyze exited with code 1',
+      reason: 'flutter test exited with code 1',
       created_at: ago(43080),
     },
   ],

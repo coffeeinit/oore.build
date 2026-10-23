@@ -1,16 +1,11 @@
 import type { UseFormReturn } from 'react-hook-form'
 import { useWatch } from 'react-hook-form'
 import * as z from 'zod'
-import type {
-  CreateNotificationChannelRequest,
-  NotificationChannel,
-  NotificationChannelType,
-  SmtpConfig,
-  UpdateNotificationChannelRequest,
-  UpdateSmtpConfig,
-} from '@oore/client/models'
-import { Badge } from '@/components/ui/badge'
+import type { SmtpConfig, UpdateSmtpConfig } from '@oore/client/models'
+import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Switch } from '@/components/ui/switch'
 import {
   FormControl,
   FormDescription,
@@ -28,29 +23,77 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { useProjects } from '@/hooks/use-projects'
+import { formatEnumLabel } from '@/lib/format-utils'
+import type {
+  CreateNotificationChannelRequest,
+  NotificationChannel,
+  NotificationChannelType,
+  UpdateNotificationChannelRequest,
+} from '@/lib/notification-channels'
 
 const CHANNEL_TYPES = {
+  slack: 'Slack',
   webhook: 'Webhook (Generic HTTP POST)',
-  mattermost: 'Mattermost / Slack',
+  mattermost: 'Mattermost',
   email: 'Email (SMTP)',
 } satisfies Record<NotificationChannelType, string>
 
-const NOTIFICATION_EVENTS = [
-  { value: 'succeeded', label: 'Succeeded' },
-  { value: 'failed', label: 'Failed' },
-  { value: 'canceled', label: 'Canceled' },
-  { value: 'timed_out', label: 'Timed out' },
-  { value: 'expired', label: 'Expired' },
-  { value: 'runner_offline', label: 'Runner offline' },
+const TLS_MODES = {
+  start_tls: 'STARTTLS (port 587)',
+  tls: 'Implicit TLS (port 465)',
+  none: 'None (unencrypted)',
+} as const
+
+const ALL_PROJECTS = 'all'
+
+const NOTIFICATION_EVENT_GROUPS = [
+  {
+    label: 'Builds',
+    events: [
+      { value: 'succeeded', label: 'Build succeeded' },
+      { value: 'failed', label: 'Build failed' },
+      { value: 'canceled', label: 'Build canceled' },
+      { value: 'timed_out', label: 'Build timed out' },
+      { value: 'expired', label: 'Build expired in queue' },
+    ],
+  },
+  {
+    label: 'Releases',
+    events: [
+      { value: 'release_uploaded', label: 'Release uploaded' },
+      { value: 'release_approval_needed', label: 'Release approval needed' },
+      { value: 'rollout_step_raised', label: 'Rollout increased' },
+      { value: 'rollout_halted', label: 'Rollout halted' },
+      { value: 'rollout_completed', label: 'Rollout complete' },
+      { value: 'release_failed', label: 'Release failed' },
+    ],
+  },
+  {
+    label: 'Runners',
+    events: [{ value: 'runner_offline', label: 'Runner offline' }],
+  },
 ] as const
+
+const NOTIFICATION_EVENT_LABELS = new Map<string, string>(
+  NOTIFICATION_EVENT_GROUPS.flatMap((group) =>
+    group.events.map((event) => [event.value, event.label] as const),
+  ),
+)
+
+export function notificationEventLabel(event: string): string {
+  return NOTIFICATION_EVENT_LABELS.get(event) ?? formatEnumLabel(event)
+}
 
 export const notificationChannelSchema = z.object({
   name: z.string().min(1, 'Name is required').max(200, 'Name too long'),
-  channel_type: z.enum(['webhook', 'mattermost', 'email']),
+  channel_type: z.enum(['slack', 'webhook', 'mattermost', 'email']),
   enabled: z.boolean(),
+  project_id: z.string(),
   url: z.string().optional(),
   secret: z.string().optional(),
   remove_secret: z.boolean(),
+  event_scope: z.enum(['all', 'selected']),
   events: z.array(z.string()),
   smtp_host: z.string().optional(),
   smtp_port: z.string().optional(),
@@ -61,8 +104,52 @@ export const notificationChannelSchema = z.object({
   smtp_recipients: z.string().optional(),
 })
 
+type NotificationChannelSchemaValues = z.infer<typeof notificationChannelSchema>
+
+function requireSelectedEvents(
+  values: NotificationChannelSchemaValues,
+  context: z.RefinementCtx,
+) {
+  if (values.event_scope === 'selected' && values.events.length === 0) {
+    context.addIssue({
+      code: 'custom',
+      message: 'Select at least one event, or choose All events',
+      path: ['events'],
+    })
+  }
+}
+
+// Saved SMTP settings are prefilled when editing, so clearing a required
+// field is a mistake rather than a request to keep the saved value.
+export function editNotificationChannelSchema(hasSmtpSummary: boolean) {
+  return notificationChannelSchema.superRefine((values, context) => {
+    requireSelectedEvents(values, context)
+    if (values.channel_type !== 'email' || !hasSmtpSummary) return
+    const requiredFields = [
+      ['smtp_host', values.smtp_host?.trim(), 'SMTP host is required'],
+      ['smtp_username', values.smtp_username?.trim(), 'Username is required'],
+      [
+        'smtp_recipients',
+        values.smtp_recipients?.trim(),
+        'At least one recipient required',
+      ],
+    ] as const
+    for (const [path, value, message] of requiredFields) {
+      if (!value) context.addIssue({ code: 'custom', message, path: [path] })
+    }
+    if (!values.smtp_from_address?.includes('@')) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Valid email address required',
+        path: ['smtp_from_address'],
+      })
+    }
+  })
+}
+
 export const createNotificationChannelSchema =
   notificationChannelSchema.superRefine((values, context) => {
+    requireSelectedEvents(values, context)
     if (values.channel_type !== 'email') {
       if (!values.url) {
         context.addIssue({
@@ -111,11 +198,13 @@ export type NotificationChannelFormValues = z.infer<
 
 export const notificationChannelDefaults: NotificationChannelFormValues = {
   name: '',
-  channel_type: 'webhook',
+  channel_type: 'slack',
   enabled: true,
+  project_id: ALL_PROJECTS,
   url: '',
   secret: '',
   remove_secret: false,
+  event_scope: 'all',
   events: [],
   smtp_host: '',
   smtp_port: '587',
@@ -129,14 +218,21 @@ export const notificationChannelDefaults: NotificationChannelFormValues = {
 export function notificationChannelEditValues(
   channel: NotificationChannel,
 ): NotificationChannelFormValues {
+  const smtp = channel.smtp_summary
   return {
     ...notificationChannelDefaults,
     name: channel.name,
     channel_type: channel.channel_type,
     enabled: channel.enabled,
+    project_id: channel.project_id ?? ALL_PROJECTS,
+    event_scope: channel.events.length > 0 ? 'selected' : 'all',
     events: channel.events,
-    smtp_port: '',
-    smtp_tls_mode: undefined,
+    smtp_host: smtp?.host ?? '',
+    smtp_port: smtp ? String(smtp.port) : '',
+    smtp_username: smtp?.username ?? '',
+    smtp_tls_mode: smtp?.tls_mode,
+    smtp_from_address: smtp?.from_address ?? '',
+    smtp_recipients: smtp?.recipients.join(', ') ?? '',
   }
 }
 
@@ -149,14 +245,21 @@ function recipients(value?: string): Array<string> {
     : []
 }
 
+// An empty list means every event.
+function selectedEvents(values: NotificationChannelFormValues): Array<string> {
+  return values.event_scope === 'all' ? [] : values.events
+}
+
 export function createNotificationChannelRequest(
   values: NotificationChannelFormValues,
 ): CreateNotificationChannelRequest {
   const request = {
     name: values.name,
     channel_type: values.channel_type,
-    events: values.events,
+    events: selectedEvents(values),
     enabled: values.enabled,
+    project_id:
+      values.project_id === ALL_PROJECTS ? undefined : values.project_id,
   }
   if (values.channel_type !== 'email') {
     return { ...request, url: values.url, secret: values.secret || undefined }
@@ -180,7 +283,8 @@ export function updateNotificationChannelRequest(
   const request: UpdateNotificationChannelRequest = {
     name: values.name,
     enabled: values.enabled,
-    events: values.events,
+    events: selectedEvents(values),
+    project_id: values.project_id === ALL_PROJECTS ? '' : values.project_id,
   }
   if (values.channel_type !== 'email') {
     return {
@@ -211,7 +315,74 @@ export function channelTypeLabel(type: NotificationChannelType): string {
     ? 'Webhook'
     : type === 'mattermost'
       ? 'Mattermost'
-      : 'Email (SMTP)'
+      : type === 'slack'
+        ? 'Slack'
+        : 'Email (SMTP)'
+}
+
+function ProjectScopeField({
+  form,
+}: {
+  form: UseFormReturn<NotificationChannelFormValues>
+}) {
+  const projectsQuery = useProjects({ limit: 100 })
+  const projects = projectsQuery.data?.projects ?? []
+  const items = {
+    [ALL_PROJECTS]: 'All projects',
+    ...Object.fromEntries(
+      projects.map((project) => [project.id, project.name]),
+    ),
+  }
+
+  return (
+    <FormField
+      control={form.control}
+      name="project_id"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>Project</FormLabel>
+          <Select
+            value={field.value}
+            onValueChange={field.onChange}
+            items={items}
+          >
+            <FormControl>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="All projects" />
+              </SelectTrigger>
+            </FormControl>
+            <SelectContent>
+              {Object.entries(items).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <FormDescription>
+            {field.value === ALL_PROJECTS
+              ? 'Receives events from every project, plus runner alerts.'
+              : 'Receives build and release events for this project only.'}
+          </FormDescription>
+          {projectsQuery.isError ? (
+            <p className="text-sm text-destructive">
+              Could not load projects.{' '}
+              <Button
+                type="button"
+                variant="link"
+                size="xs"
+                className="h-auto px-0 align-baseline text-sm text-destructive underline"
+                onClick={() => void projectsQuery.refetch()}
+              >
+                Retry
+              </Button>
+            </p>
+          ) : null}
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  )
 }
 
 export function NotificationChannelFormFields({
@@ -226,8 +397,12 @@ export function NotificationChannelFormFields({
     control: form.control,
     name: 'remove_secret',
   })
+  const eventScope = useWatch({ control: form.control, name: 'event_scope' })
   const editing = !!channel
-  const unchanged = editing ? 'Leave blank to keep existing' : undefined
+  // Without a readable summary the saved SMTP values are unknown, so blank
+  // fields keep them.
+  const smtpUnknown = editing && !channel.smtp_summary
+  const unchanged = smtpUnknown ? 'Leave blank to keep existing' : undefined
 
   return (
     <>
@@ -253,14 +428,21 @@ export function NotificationChannelFormFields({
           control={form.control}
           name="enabled"
           render={({ field }) => (
-            <FormItem className="flex items-center gap-2 space-y-0">
+            <FormItem className="flex items-center justify-between gap-4 space-y-0">
+              <div className="space-y-0.5">
+                <FormLabel>Enabled</FormLabel>
+                <FormDescription>
+                  {field.value
+                    ? 'This channel sends notifications.'
+                    : 'Paused. Events are not sent to this channel.'}
+                </FormDescription>
+              </div>
               <FormControl>
-                <Checkbox
+                <Switch
                   checked={field.value}
                   onCheckedChange={field.onChange}
                 />
               </FormControl>
-              <FormLabel className="text-sm font-normal">Enabled</FormLabel>
             </FormItem>
           )}
         />
@@ -277,7 +459,7 @@ export function NotificationChannelFormFields({
                 items={CHANNEL_TYPES}
               >
                 <FormControl>
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select channel type" />
                   </SelectTrigger>
                 </FormControl>
@@ -290,11 +472,13 @@ export function NotificationChannelFormFields({
                 </SelectContent>
               </Select>
               <FormDescription>
-                {channelType === 'webhook'
-                  ? 'Sends a JSON payload with build details to your URL.'
-                  : channelType === 'mattermost'
-                    ? 'Sends a formatted message to a Mattermost or Slack incoming webhook.'
-                    : 'Sends HTML email notifications via SMTP.'}
+                {channelType === 'slack'
+                  ? 'Posts Slack messages with a link to the build or release and a mention of the person who triggered it.'
+                  : channelType === 'webhook'
+                    ? 'Sends a JSON payload with event details to your URL.'
+                    : channelType === 'mattermost'
+                      ? 'Sends a formatted message to a Mattermost incoming webhook.'
+                      : 'Sends HTML email notifications via SMTP.'}
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -302,20 +486,16 @@ export function NotificationChannelFormFields({
         />
       )}
 
+      <ProjectScopeField form={form} />
+
       {channelType === 'email' ? (
         <>
-          {channel ? (
-            <>
-              <Badge
-                variant={channel.has_smtp_config ? 'secondary' : 'outline'}
-              >
-                {channel.has_smtp_config ? 'SMTP configured' : 'No SMTP config'}
-              </Badge>
-              <p className="text-sm text-muted-foreground">
-                Leave fields blank to keep existing values. Only fill in fields
-                you want to change.
-              </p>
-            </>
+          {smtpUnknown ? (
+            <p className="text-sm text-muted-foreground">
+              {channel.has_smtp_config
+                ? 'Oore could not read the saved SMTP settings. Leave fields blank to keep them, or fill in the ones you want to change.'
+                : 'No SMTP settings are saved yet.'}
+            </p>
           ) : null}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -378,8 +558,23 @@ export function NotificationChannelFormFields({
                 <FormItem>
                   <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder={unchanged} {...field} />
+                    <Input
+                      type="password"
+                      autoComplete="new-password"
+                      placeholder={
+                        editing && channel.has_smtp_config
+                          ? 'Saved password'
+                          : undefined
+                      }
+                      {...field}
+                    />
                   </FormControl>
+                  {editing && channel.has_smtp_config ? (
+                    <FormDescription>
+                      Enter a new password only to change it. Changing the host,
+                      port or username needs it again.
+                    </FormDescription>
+                  ) : null}
                   <FormMessage />
                 </FormItem>
               )}
@@ -392,22 +587,26 @@ export function NotificationChannelFormFields({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>TLS mode</FormLabel>
-                <Select value={field.value} onValueChange={field.onChange}>
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  items={TLS_MODES}
+                >
                   <FormControl>
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full">
                       <SelectValue
                         placeholder={
-                          editing ? 'Leave unchanged' : 'Select TLS mode'
+                          smtpUnknown ? 'Leave unchanged' : 'Select TLS mode'
                         }
                       />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="start_tls">
-                      STARTTLS (port 587)
-                    </SelectItem>
-                    <SelectItem value="tls">Implicit TLS (port 465)</SelectItem>
-                    <SelectItem value="none">None (unencrypted)</SelectItem>
+                    {Object.entries(TLS_MODES).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -442,7 +641,7 @@ export function NotificationChannelFormFields({
                 <FormControl>
                   <Textarea
                     placeholder={
-                      editing
+                      smtpUnknown
                         ? 'Leave blank to keep existing (comma-separated)'
                         : 'alice@example.com, bob@example.com'
                     }
@@ -452,7 +651,9 @@ export function NotificationChannelFormFields({
                 </FormControl>
                 <FormDescription>
                   Comma-separated list of email addresses
-                  {editing ? '. Leave blank to keep existing recipients.' : '.'}
+                  {smtpUnknown
+                    ? '. Leave blank to keep existing recipients.'
+                    : '.'}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -468,10 +669,10 @@ export function NotificationChannelFormFields({
               <FormItem>
                 <FormLabel>
                   {editing
-                    ? 'New URL (leave blank to keep existing)'
-                    : channelType === 'mattermost'
-                      ? 'Incoming Webhook URL'
-                      : 'Webhook URL'}
+                    ? 'Replace URL'
+                    : channelType === 'webhook'
+                      ? 'Webhook URL'
+                      : 'Incoming webhook URL'}
                 </FormLabel>
                 <FormControl>
                   <Input
@@ -479,18 +680,22 @@ export function NotificationChannelFormFields({
                     placeholder={
                       editing
                         ? 'https://...'
-                        : channelType === 'mattermost'
-                          ? 'https://mattermost.example.com/hooks/...'
-                          : 'https://example.com/webhook'
+                        : channelType === 'slack'
+                          ? 'https://hooks.slack.com/services/...'
+                          : channelType === 'mattermost'
+                            ? 'https://mattermost.example.com/hooks/...'
+                            : 'https://example.com/webhook'
                     }
                     {...field}
                   />
                 </FormControl>
                 {channel ? (
                   <FormDescription>
-                    {channel.has_url
-                      ? 'A URL is currently configured. Enter a new one to replace it.'
-                      : 'No URL configured.'}
+                    {channel.url_host
+                      ? `Sends to ${channel.url_host}. The full URL stays hidden because it can contain a token. Enter a new one to replace it.`
+                      : channel.has_url
+                        ? 'A URL is saved. Enter a new one to replace it.'
+                        : 'No URL saved.'}
                   </FormDescription>
                 ) : null}
                 <FormMessage />
@@ -558,29 +763,114 @@ export function NotificationChannelFormFields({
               ) : null}
             </>
           ) : null}
+
+          {channelType === 'slack' ? (
+            <>
+              <FormField
+                control={form.control}
+                name="secret"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      {editing ? 'New bot token' : 'Bot token (optional)'}
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        type="password"
+                        placeholder={editing ? undefined : 'xoxb-...'}
+                        autoComplete="off"
+                        disabled={removeSecret}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {channel?.has_secret
+                        ? removeSecret
+                          ? 'The bot token will be removed when you save.'
+                          : 'Leave blank to keep the configured bot token.'
+                        : 'A bot token with the users:read.email scope lets Oore mention the person who triggered a build by matching their sign-in email. Without it, messages name them by email.'}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {channel?.has_secret ? (
+                <FormField
+                  control={form.control}
+                  name="remove_secret"
+                  render={({ field }) => (
+                    <FormItem className="flex items-start gap-3">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <div className="space-y-0.5">
+                        <FormLabel>Remove configured bot token</FormLabel>
+                        <FormDescription>
+                          Messages will name people by email instead of
+                          mentioning them.
+                        </FormDescription>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+              ) : null}
+            </>
+          ) : null}
         </>
       )}
 
       <FormField
         control={form.control}
-        name="events"
-        render={() => (
+        name="event_scope"
+        render={({ field }) => (
           <FormItem>
-            <FormLabel>Event filter</FormLabel>
+            <FormLabel>Events</FormLabel>
+            <FormControl>
+              <RadioGroup
+                value={field.value}
+                onValueChange={field.onChange}
+                className="flex flex-wrap gap-x-6 gap-y-2"
+              >
+                <label className="flex items-center gap-2 text-sm">
+                  <RadioGroupItem value="all" />
+                  All events
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <RadioGroupItem value="selected" />
+                  Selected events
+                </label>
+              </RadioGroup>
+            </FormControl>
             <FormDescription>
-              {editing
-                ? 'Leave all unchecked to receive all events.'
-                : 'Select which events trigger this channel. Leave all unchecked to receive all events.'}
+              {field.value === 'all'
+                ? 'Sends every build, release and runner event, including events added later.'
+                : 'Sends only the events you choose below.'}
             </FormDescription>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {NOTIFICATION_EVENTS.map((event) => (
-                <FormField
-                  key={event.value}
-                  control={form.control}
-                  name="events"
-                  render={({ field }) => (
-                    <FormItem className="flex items-center gap-2 space-y-0">
-                      <FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      {eventScope === 'selected' ? (
+        <FormField
+          control={form.control}
+          name="events"
+          render={({ field }) => (
+            <FormItem>
+              <div className="grid gap-4 sm:grid-cols-3">
+                {NOTIFICATION_EVENT_GROUPS.map((group) => (
+                  <fieldset key={group.label} className="space-y-2">
+                    <legend className="mb-2 text-xs font-medium text-muted-foreground">
+                      {group.label}
+                    </legend>
+                    {group.events.map((event) => (
+                      <label
+                        key={event.value}
+                        className="flex items-center gap-2 text-sm"
+                      >
                         <Checkbox
                           checked={field.value.includes(event.value)}
                           onCheckedChange={(checked) =>
@@ -593,19 +883,17 @@ export function NotificationChannelFormFields({
                             )
                           }
                         />
-                      </FormControl>
-                      <FormLabel className="text-sm font-normal">
                         {event.label}
-                      </FormLabel>
-                    </FormItem>
-                  )}
-                />
-              ))}
-            </div>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
+                      </label>
+                    ))}
+                  </fieldset>
+                ))}
+              </div>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      ) : null}
     </>
   )
 }

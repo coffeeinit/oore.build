@@ -15,9 +15,60 @@ Oore drains active runner work, creates a backup, restarts managed services, and
 
 Use `oore-web update` on a separate Web node.
 
-`oore install` does not replace live profile components across release streams. Use the preserve-data procedure when you change the stream or profile.
+See the [`oore update` reference](/reference/cli/oore-update) for every option, release mirrors, and the next step for other roles.
 
-This guided update procedure supports macOS only. Published Linux web archives do not provide a guided Web node lifecycle.
+## When an in-place update fails
+
+`oore update` prints why the new release was rejected, then restores the previous release. If `oore status` still reports a refused connection afterwards, check the daemon service and its binary:
+
+```bash
+sudo launchctl print system/build.oore.oored | grep -E 'state|last exit'
+ls -l ~/.oore/bin/oored
+```
+
+A `last exit code = 78` together with a missing `bin/oored` means launchd has nothing to start. Download the `oore_<version>_darwin_<arch>.tar.gz` archive for the version `oore version` reports, verify it against the release's signed checksums, and put the daemon back:
+
+```bash
+tar -xzf oore_<version>_darwin_<arch>.tar.gz
+install -m 0755 bin/oored ~/.oore/bin/oored
+sudo launchctl kickstart -k system/build.oore.oored
+oore status
+```
+
+This touches only the daemon binary. The database, configuration, and runner registration stay as they were.
+
+## When a web UI update is interrupted
+
+An update started from the web UI moves `bin/oored` aside while it backs up the database. If the Mac restarts or the update supervisor is killed during that window, launchd has no daemon to start and the web UI stays down.
+
+Run any lifecycle command from Terminal on the backend Mac to recover, for example:
+
+```bash
+oore doctor --update
+```
+
+Oore puts the held daemon back, restores the previous CLI when the update had already replaced it, marks the update as failed, and restarts the daemon. If the restart needs administrator access that `oore setup` did not grant, Oore prints the `sudo launchctl kickstart` command to run. `oore update` and the next web UI update run the same recovery first.
+
+If the update was interrupted while it rolled back a failed release, Oore restores the new daemon so that the service can start, and keeps the previous release in the `.supervised-update-*` directory it names. Check `logs/update-supervisor.log` before you try again.
+
+When Oore cannot ask launchd whether the update supervisor still runs, the web UI marks an update with no progress for 45 minutes as failed, so you can start a new attempt.
+
+## Switch the release channel
+
+To move a Ready Complete or Control plane installation to another channel in place, name the channel and confirm the switch:
+
+```bash
+oore update --check --channel alpha
+oore update --channel alpha --switch-channel
+```
+
+On a separate Web node, run `oore-web update --channel alpha --switch-channel` so that both halves follow the same channel. Later updates, including those from the web UI, stay on the new channel.
+
+A switch never downgrades. If the target channel's latest release is older than the installed version, the update stops without changes. See [Choose a release channel](/operate/releases#change-the-update-stream).
+
+`oore install` does not replace live profile components across release streams. Use the preserve-data procedure below to move to an older release or to change the profile.
+
+This guided update procedure supports macOS only. To update a Web node that runs on Linux, see [Run a Web node on Linux](/operate/deploy/linux-web-node#update-the-web-node).
 
 ## Upgrade from v0.1.41
 
@@ -31,7 +82,7 @@ Approve `oore uninstall --legacy-v0-1-41` when the bootstrap offers it.
 
 Oore verifies the old payload and services before any removal. It requests administrator access for protected launchd definitions.
 
-The removal preserves the database, configuration, logs, runner registration, FVM files, and downloaded toolchains.
+The removal preserves the database, configuration, logs, and runner registration.
 
 The bootstrap then installs the v0.1.42 CLI. Run `oore install` and select the matching new profile.
 

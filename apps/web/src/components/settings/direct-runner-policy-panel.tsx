@@ -18,13 +18,24 @@ import {
 } from '@/components/ui/item'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
+import {
+  SettingsSection,
+  SettingsSurface,
+} from '@/components/settings/settings-section'
 
 export function DirectRunnerPolicyPanel() {
   const canRead = useHasPermission('instance_settings:read')
 
   if (!canRead) return null
 
-  return <DirectRunnerPolicyControl />
+  return (
+    <SettingsSection
+      title="Build intake"
+      description="Applies to every runner on this instance. Pausing stops new claims; assigned and running builds finish."
+    >
+      <DirectRunnerPolicyControl />
+    </SettingsSection>
+  )
 }
 
 function DirectRunnerPolicyControl() {
@@ -75,8 +86,8 @@ function DirectRunnerPolicyControl() {
         onSuccess: () =>
           toast.success(
             checked
-              ? 'Direct macOS runner enabled.'
-              : 'Direct macOS runner paused. Running builds will finish.',
+              ? 'Runners resumed.'
+              : 'Runners paused. Running builds will finish.',
           ),
         onError: (error) =>
           toast.error(`Failed to update runner policy: ${error.message}`),
@@ -85,27 +96,65 @@ function DirectRunnerPolicyControl() {
   }
 
   return (
-    <Item variant="outline">
-      <ItemContent>
-        <ItemTitle>Allow approved repositories</ItemTitle>
-        <ItemDescription>
-          Pause new claims while assigned and running jobs finish.
-        </ItemDescription>
-        {!canWrite ? (
+    <SettingsSurface inset={false}>
+      <Item>
+        <ItemContent>
+          <ItemTitle>Accept builds from approved repositories</ItemTitle>
           <ItemDescription>
-            You have read-only access to this instance policy.
+            {enabled
+              ? 'Connected runners claim new builds from approved repositories.'
+              : 'Paused. Builds in progress finish; new builds wait until you resume.'}
           </ItemDescription>
-        ) : null}
-      </ItemContent>
-      <ItemActions className="ml-auto">
-        <Switch
-          id="direct-runner-policy"
-          aria-label="Allow approved repositories"
-          checked={enabled}
-          disabled={!canWrite || mutation.isPending}
-          onCheckedChange={updatePolicy}
-        />
-      </ItemActions>
-    </Item>
+          {!canWrite ? (
+            <ItemDescription>
+              Only an owner or admin can change this.
+            </ItemDescription>
+          ) : null}
+        </ItemContent>
+        <ItemActions className="ml-auto">
+          <Switch
+            id="direct-runner-policy"
+            aria-label="Accept builds from approved repositories"
+            checked={enabled}
+            disabled={!canWrite || mutation.isPending}
+            onCheckedChange={updatePolicy}
+          />
+        </ItemActions>
+      </Item>
+    </SettingsSurface>
+  )
+}
+
+// Lets owners and admins resume paused runners from the alert that explains
+// why a build is waiting, instead of sending them to another page.
+export function ResumeRunnersButton() {
+  const preferencesQuery = useInstancePreferences()
+  const mutation = useUpdateInstancePreferences()
+  const preferences = preferencesQuery.data
+
+  if (!preferences?.direct_macos_runner_paused) return null
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      disabled={mutation.isPending}
+      onClick={() =>
+        mutation.mutate(
+          {
+            key_storage_mode: preferences.key_storage_mode,
+            direct_macos_runner_paused: false,
+          },
+          {
+            onSuccess: () => toast.success('Runners resumed.'),
+            onError: (error) =>
+              toast.error(`Failed to resume runners: ${error.message}`),
+          },
+        )
+      }
+    >
+      {mutation.isPending ? 'Resuming...' : 'Resume runners'}
+    </Button>
   )
 }

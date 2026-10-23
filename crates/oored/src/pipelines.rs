@@ -5,15 +5,17 @@ use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use oore_contract::{
-    ApiError, BuildPlatform, ConcurrencyPolicy, CreatePipelineRequest, CreatePipelineResponse,
-    ListPipelinesResponse, OkResponse, Pipeline, PipelineDetailResponse, PipelineExecutionConfig,
-    TriggerConfig, UpdatePipelineRequest, ValidatePipelineRequest, ValidatePipelineResponse,
-    is_valid_pipeline_env_key, parse_repository_pipeline_yaml, validate_artifact_pattern,
-    validate_repository_config_path,
+    ApiError, ApprovalPolicy, BuildPlatform, ConcurrencyPolicy, CreatePipelineRequest,
+    CreatePipelineResponse, DEFAULT_BUILD_TIMEOUT_MINUTES, ListPipelinesResponse,
+    MAX_BUILD_TIMEOUT_MINUTES, OkResponse, Pipeline, PipelineDetailResponse,
+    PipelineExecutionConfig, TriggerConfig, UpdatePipelineRequest, ValidatePipelineRequest,
+    ValidatePipelineResponse, is_valid_pipeline_env_key, normalize_runner_labels,
+    parse_repository_pipeline_yaml, secret_expression_errors, validate_artifact_pattern,
+    validate_build_number_offset, validate_repository_config_path,
 };
 use serde::Deserialize;
 use sqlx::Row;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 use crate::AppState;
@@ -40,6 +42,8 @@ const MAX_ENV_VARS: usize = 128;
 const MAX_ENV_KEY_LENGTH: usize = 128;
 const MAX_ENV_VALUE_LENGTH: usize = 4096;
 const MAX_FLUTTER_VERSION_LENGTH: usize = 64;
+const MAX_TRIGGER_PATTERNS: usize = 64;
+const MAX_TRIGGER_PATTERN_LENGTH: usize = 512;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ProjectTriggerMode {
@@ -154,6 +158,14 @@ fn validate_execution_config(cfg: &PipelineExecutionConfig) -> Vec<String> {
     validate_platform_command_override("ios", &cfg.platform_commands.ios, &mut errors);
     validate_platform_command_override("macos", &cfg.platform_commands.macos, &mut errors);
 
+    if let Err(error) = validate_build_number_offset(cfg.build_number_offset) {
+        errors.push(format!("execution_config.build_number_offset {error}"));
+    }
+
+    if let Err(error) = normalize_runner_labels(&cfg.runs_on) {
+        errors.push(format!("execution_config.runs_on {error}"));
+    }
+
     if cfg.artifact_patterns.len() > MAX_ARTIFACT_PATTERNS {
         errors.push(format!(
             "execution_config.artifact_patterns has too many entries (max {MAX_ARTIFACT_PATTERNS})"
@@ -203,6 +215,11 @@ fn validate_execution_config(cfg: &PipelineExecutionConfig) -> Vec<String> {
         }
     }
 
+    errors.extend(
+        secret_expression_errors(cfg)
+            .into_iter()
+            .map(|error| format!("execution_config.{error}")),
+    );
     errors
 }
 
@@ -238,6 +255,78 @@ fn validate_trigger_config(tc: &TriggerConfig) -> Vec<String> {
         }
     }
 
+    for (field, patterns) in [
+        ("tags", &tc.tags),
+        ("paths", &tc.paths),
+        ("paths_ignore", &tc.paths_ignore),
+    ] {
+        if patterns.len() > MAX_TRIGGER_PATTERNS {
+            errors.push(format!(
+                "trigger_config.{field} has too many entries (max {MAX_TRIGGER_PATTERNS})"
+            ));
+        }
+        for (i, pattern) in patterns.iter().enumerate() {
+            let trimmed = pattern.trim();
+            if trimmed.is_empty() {
+                errors.push(format!("trigger_config.{field}[{i}] must not be empty"));
+            } else if trimmed.len() > MAX_TRIGGER_PATTERN_LENGTH {
+                errors.push(format!(
+                    "trigger_config.{field}[{i}] is too long (max {MAX_TRIGGER_PATTERN_LENGTH} chars)"
+                ));
+            } else if field != "tags" && (trimmed.starts_with('/') || trimmed.contains('\\')) {
+                errors.push(format!(
+                    "trigger_config.{field}[{i}] must be a repository-relative path using '/' separators"
+                ));
+            }
+        }
+    }
+
+    let event_listed = |event: &str| tc.events.is_empty() || tc.events.iter().any(|e| e == event);
+    if !tc.tags.is_empty() && !event_listed("tag_push") {
+        errors.push("trigger_config.tags needs the tag_push event".to_string());
+    }
+    if (!tc.paths.is_empty() || !tc.paths_ignore.is_empty())
+        && !event_listed("push")
+        && !event_listed("pull_request")
+    {
+        errors.push("trigger_config.paths apply only to push and pull_request events".to_string());
+    }
+
+    errors.extend(crate::pipeline_schedules::validate_schedules(&tc.schedules));
+    errors
+}
+
+fn validate_timeout_minutes(minutes: u32) -> Vec<String> {
+    if (1..=MAX_BUILD_TIMEOUT_MINUTES).contains(&minutes) {
+        Vec::new()
+    } else {
+        vec![format!(
+            "timeout_minutes must be between 1 and {MAX_BUILD_TIMEOUT_MINUTES}"
+        )]
+    }
+}
+
+fn validate_approval_policy(policy: &ApprovalPolicy) -> Vec<String> {
+    let mut errors: Vec<String> = policy
+        .events
+        .iter()
+        .filter(|event| !ApprovalPolicy::EVENTS.contains(&event.as_str()))
+        .map(|event| {
+            format!(
+                "Invalid approval event '{event}'. Valid: {}",
+                ApprovalPolicy::EVENTS.join(", ")
+            )
+        })
+        .collect();
+    if policy
+        .expires_after_hours
+        .is_some_and(|hours| !(1..=ApprovalPolicy::MAX_EXPIRES_AFTER_HOURS).contains(&hours))
+    {
+        errors.push(format!(
+            "approval.expires_after_hours must be between 1 and {}",
+            ApprovalPolicy::MAX_EXPIRES_AFTER_HOURS
+        ));
+    }
     errors
 }
 
@@ -249,6 +338,12 @@ fn validate_manual_only_trigger_config(tc: &TriggerConfig) -> Vec<String> {
     }
     if !tc.branches.is_empty() {
         errors.push("trigger_config.branches must be empty for local repositories".to_string());
+    }
+    if !tc.tags.is_empty() || !tc.paths.is_empty() || !tc.paths_ignore.is_empty() {
+        errors.push(
+            "trigger_config.tags, paths and paths_ignore must be empty for local repositories"
+                .to_string(),
+        );
     }
 
     errors
@@ -316,6 +411,16 @@ fn row_to_pipeline(row: &sqlx::sqlite::SqliteRow) -> Pipeline {
 
     let enabled_int: i32 = row.get("enabled");
     let config_path_explicit: i32 = row.try_get("config_path_explicit").unwrap_or(0);
+    let timeout_minutes = row
+        .try_get::<i64, _>("timeout_minutes")
+        .ok()
+        .and_then(|minutes| u32::try_from(minutes).ok())
+        .unwrap_or(DEFAULT_BUILD_TIMEOUT_MINUTES);
+    let approval: ApprovalPolicy = row
+        .try_get::<String, _>("approval_policy")
+        .ok()
+        .and_then(|raw| serde_json::from_str(&raw).ok())
+        .unwrap_or_default();
 
     Pipeline {
         id: row.get("id"),
@@ -326,6 +431,8 @@ fn row_to_pipeline(row: &sqlx::sqlite::SqliteRow) -> Pipeline {
         execution_config,
         trigger_config,
         concurrency,
+        timeout_minutes,
+        approval,
         enabled: enabled_int != 0,
         created_at: row.get("created_at"),
         updated_at: row.get("updated_at"),
@@ -475,13 +582,30 @@ pub async fn create_pipeline(
         ));
     }
 
-    let execution_config = req.execution_config.unwrap_or_default();
+    let mut execution_config = req.execution_config.unwrap_or_default();
     let exec_errors = validate_execution_config(&execution_config);
     if !exec_errors.is_empty() {
         return Err(api_err(
             StatusCode::BAD_REQUEST,
             "invalid_execution_config",
             exec_errors.join("; "),
+        ));
+    }
+    execution_config.runs_on =
+        normalize_runner_labels(&execution_config.runs_on).expect("runs_on validated above");
+
+    let timeout_minutes = req.timeout_minutes.unwrap_or(DEFAULT_BUILD_TIMEOUT_MINUTES);
+    let approval = req.approval.unwrap_or_default();
+    let gate_errors = [
+        validate_timeout_minutes(timeout_minutes),
+        validate_approval_policy(&approval),
+    ]
+    .concat();
+    if !gate_errors.is_empty() {
+        return Err(api_err(
+            StatusCode::BAD_REQUEST,
+            "invalid_input",
+            gate_errors.join("; "),
         ));
     }
 
@@ -493,8 +617,8 @@ pub async fn create_pipeline(
     let execution_config_json = serde_json::to_string(&execution_config).unwrap_or_default();
 
     sqlx::query(
-        "INSERT INTO pipelines (id, project_id, name, config_path, config_path_explicit, execution_config, trigger_config, concurrency, enabled, created_at, updated_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 1, ?9, ?9)",
+        "INSERT INTO pipelines (id, project_id, name, config_path, config_path_explicit, execution_config, trigger_config, concurrency, timeout_minutes, approval_policy, enabled, created_at, updated_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?10, ?11, 1, ?9, ?9)",
     )
     .bind(&pipeline_id)
     .bind(&project_id)
@@ -505,6 +629,8 @@ pub async fn create_pipeline(
     .bind(&trigger_config_json)
     .bind(&concurrency_json)
     .bind(now)
+    .bind(timeout_minutes)
+    .bind(serde_json::to_string(&approval).unwrap_or_default())
     .execute(&pool)
     .await
     .map_err(|e| {
@@ -539,6 +665,8 @@ pub async fn create_pipeline(
         execution_config,
         trigger_config,
         concurrency,
+        timeout_minutes,
+        approval,
         enabled: true,
         created_at: now,
         updated_at: now,
@@ -744,6 +872,8 @@ pub async fn update_pipeline(
         && req.execution_config.is_none()
         && req.trigger_config.is_none()
         && req.concurrency.is_none()
+        && req.timeout_minutes.is_none()
+        && req.approval.is_none()
         && req.enabled.is_none()
     {
         return Ok(Json(CreatePipelineResponse {
@@ -830,7 +960,7 @@ pub async fn update_pipeline(
         pipeline.concurrency = concurrency;
     }
 
-    if let Some(execution_config) = req.execution_config {
+    if let Some(mut execution_config) = req.execution_config {
         let errors = validate_execution_config(&execution_config);
         if !errors.is_empty() {
             return Err(api_err(
@@ -839,7 +969,46 @@ pub async fn update_pipeline(
                 errors.join("; "),
             ));
         }
+        execution_config.runs_on =
+            normalize_runner_labels(&execution_config.runs_on).expect("runs_on validated above");
         pipeline.execution_config = execution_config;
+    }
+
+    if let Some(timeout_minutes) = req.timeout_minutes {
+        let errors = validate_timeout_minutes(timeout_minutes);
+        if !errors.is_empty() {
+            return Err(api_err(
+                StatusCode::BAD_REQUEST,
+                "invalid_input",
+                errors.join("; "),
+            ));
+        }
+        pipeline.timeout_minutes = timeout_minutes;
+    }
+
+    if let Some(approval) = req.approval
+        && approval != pipeline.approval
+    {
+        let errors = validate_approval_policy(&approval);
+        if !errors.is_empty() {
+            return Err(api_err(
+                StatusCode::BAD_REQUEST,
+                "invalid_input",
+                errors.join("; "),
+            ));
+        }
+        // Developers manage pipelines, but only maintainers decide who must
+        // approve their builds.
+        require_pipeline_project_permission(
+            pool,
+            &auth.0.user_id,
+            &auth.0.role,
+            &auth.0.auth_source,
+            &pipeline_id,
+            ProjectPermission::ApproveBuild,
+        )
+        .await?;
+        pipeline.approval = approval;
     }
 
     if let Some(enabled) = req.enabled {
@@ -849,7 +1018,8 @@ pub async fn update_pipeline(
     let now = now_unix();
     sqlx::query(
         "UPDATE pipelines \
-         SET name = ?1, config_path = ?2, config_path_explicit = ?3, execution_config = ?4, trigger_config = ?5, concurrency = ?6, enabled = ?7, updated_at = ?8 \
+         SET name = ?1, config_path = ?2, config_path_explicit = ?3, execution_config = ?4, trigger_config = ?5, concurrency = ?6, enabled = ?7, updated_at = ?8, \
+             timeout_minutes = ?10, approval_policy = ?11 \
          WHERE id = ?9",
     )
     .bind(&pipeline.name)
@@ -861,6 +1031,8 @@ pub async fn update_pipeline(
     .bind(if pipeline.enabled { 1 } else { 0 })
     .bind(now)
     .bind(&pipeline_id)
+    .bind(pipeline.timeout_minutes)
+    .bind(serde_json::to_string(&pipeline.approval).unwrap_or_default())
     .execute(pool)
     .await
     .map_err(|e| {
@@ -915,10 +1087,49 @@ pub async fn delete_pipeline(
     check_permission(&state.enforcer, &auth.0.role, "pipelines", "delete").await?;
 
     let pool = &state.db;
+    let artifact_paths = delete_pipeline_rows(pool, &pipeline_id).await?;
 
+    let storage = state.storage.read().await.clone();
+    let mut artifacts_left = 0;
+    for file_path in &artifact_paths {
+        if let Err(error) = storage.delete_object(file_path).await {
+            warn!(pipeline_id = %pipeline_id, %file_path, %error, "failed to delete a deleted pipeline's artifact");
+            artifacts_left += 1;
+        }
+    }
+
+    let details = serde_json::json!({
+        "deleted_by": auth.0.email,
+        "artifacts_deleted": artifact_paths.len() - artifacts_left,
+        "artifacts_left": artifacts_left,
+    })
+    .to_string();
+    let _ = write_audit_log(
+        pool,
+        Some(&auth.0.user_id),
+        "pipeline_deleted",
+        "pipeline",
+        Some(&pipeline_id),
+        Some(&details),
+    )
+    .await;
+
+    info!(pipeline_id = %pipeline_id, "pipeline deleted");
+
+    Ok(Json(OkResponse { ok: true }))
+}
+
+/// Delete a pipeline and its finished builds. Returns the storage paths of the
+/// deleted builds' artifacts, which the caller removes after the commit.
+async fn delete_pipeline_rows(
+    pool: &sqlx::SqlitePool,
+    pipeline_id: &str,
+) -> Result<Vec<String>, (StatusCode, Json<ApiError>)> {
     // Use a transaction so the active-build check, terminal-build cleanup,
     // and pipeline delete are atomic (prevents race with concurrent build creation).
-    let mut tx = pool.begin().await.map_err(|e| {
+    // IMMEDIATE takes the write lock up front, so a concurrent write cannot
+    // make the later upgrade fail with SQLITE_BUSY.
+    let mut tx = pool.begin_with("BEGIN IMMEDIATE").await.map_err(|e| {
         error!(error = %e, "failed to begin transaction");
         api_err(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -929,7 +1140,7 @@ pub async fn delete_pipeline(
 
     // Verify pipeline exists
     let exists: bool = sqlx::query_scalar("SELECT COUNT(*) > 0 FROM pipelines WHERE id = ?1")
-        .bind(&pipeline_id)
+        .bind(pipeline_id)
         .fetch_one(&mut *tx)
         .await
         .unwrap_or(false);
@@ -947,7 +1158,7 @@ pub async fn delete_pipeline(
         "SELECT COUNT(*) FROM builds WHERE pipeline_id = ?1 \
          AND status NOT IN ('succeeded', 'failed', 'canceled', 'timed_out', 'expired')",
     )
-    .bind(&pipeline_id)
+    .bind(pipeline_id)
     .fetch_one(&mut *tx)
     .await
     .unwrap_or(0);
@@ -960,12 +1171,56 @@ pub async fn delete_pipeline(
         ));
     }
 
+    // Deleting the builds deletes their releases. Keep one the daemon is still
+    // driving; a halted release only moves when someone resumes it.
+    let releases_in_progress: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM releases r JOIN builds b ON b.id = r.build_id \
+         WHERE b.pipeline_id = ?1 AND r.state NOT IN ('complete', 'failed', 'halted')",
+    )
+    .bind(pipeline_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|e| {
+        error!(error = %e, "failed to check releases for pipeline");
+        api_err(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "store_error",
+            "Failed to delete pipeline",
+        )
+    })?;
+    if releases_in_progress > 0 {
+        return Err(api_err(
+            StatusCode::CONFLICT,
+            "releases_in_progress",
+            "Cannot delete a pipeline while one of its releases is in progress. \
+             Halt or complete the release, or wait for the store to finish, first.",
+        ));
+    }
+
+    // The artifact rows go with their builds, so collect the stored files to
+    // delete once the transaction commits.
+    let artifact_paths: Vec<String> = sqlx::query_scalar(
+        "SELECT a.file_path FROM artifacts a JOIN builds b ON b.id = a.build_id \
+         WHERE b.pipeline_id = ?1",
+    )
+    .bind(pipeline_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|e| {
+        error!(error = %e, "failed to list artifacts for pipeline");
+        api_err(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "store_error",
+            "Failed to delete pipeline",
+        )
+    })?;
+
     // Delete terminal builds first (non-cascading FK on builds.pipeline_id)
     sqlx::query(
         "DELETE FROM builds WHERE pipeline_id = ?1 \
          AND status IN ('succeeded', 'failed', 'canceled', 'timed_out', 'expired')",
     )
-    .bind(&pipeline_id)
+    .bind(pipeline_id)
     .execute(&mut *tx)
     .await
     .map_err(|e| {
@@ -977,8 +1232,21 @@ pub async fn delete_pipeline(
         )
     })?;
 
+    sqlx::query("DELETE FROM pipeline_schedule_runs WHERE pipeline_id = ?1")
+        .bind(pipeline_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| {
+            error!(error = %e, "failed to delete pipeline schedules");
+            api_err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "store_error",
+                "Failed to delete pipeline",
+            )
+        })?;
+
     sqlx::query("DELETE FROM pipelines WHERE id = ?1")
-        .bind(&pipeline_id)
+        .bind(pipeline_id)
         .execute(&mut *tx)
         .await
         .map_err(|e| {
@@ -998,24 +1266,7 @@ pub async fn delete_pipeline(
             "Failed to delete pipeline",
         )
     })?;
-
-    let details = serde_json::json!({
-        "deleted_by": auth.0.email,
-    })
-    .to_string();
-    let _ = write_audit_log(
-        pool,
-        Some(&auth.0.user_id),
-        "pipeline_deleted",
-        "pipeline",
-        Some(&pipeline_id),
-        Some(&details),
-    )
-    .await;
-
-    info!(pipeline_id = %pipeline_id, "pipeline deleted");
-
-    Ok(Json(OkResponse { ok: true }))
+    Ok(artifact_paths)
 }
 
 /// `POST /v1/pipelines/validate` — dry-run validation of pipeline config.
@@ -1037,6 +1288,14 @@ pub async fn validate_pipeline(
         errors.extend(validate_concurrency(cp));
     }
 
+    if let Some(timeout_minutes) = req.timeout_minutes {
+        errors.extend(validate_timeout_minutes(timeout_minutes));
+    }
+
+    if let Some(ref approval) = req.approval {
+        errors.extend(validate_approval_policy(approval));
+    }
+
     if let Some(ref path) = req.config_path {
         errors.extend(validate_config_path(path, config_path_explicit));
     } else if config_path_explicit {
@@ -1055,4 +1314,54 @@ pub async fn validate_pipeline(
     let valid = errors.is_empty();
 
     Ok(Json(ValidatePipelineResponse { valid, errors }))
+}
+
+#[cfg(test)]
+mod delete_tests {
+    use super::*;
+
+    async fn pool() -> sqlx::SqlitePool {
+        let pool = crate::releases::tests::pool().await;
+        for statement in [
+            "INSERT INTO artifacts (id, build_id, name, file_path, created_at) \
+             VALUES ('a1', 'b1', 'app.aab', 'artifacts/b1/app.aab', 0)",
+            "INSERT INTO releases (id, project_id, build_id, store, track, state, created_at, updated_at) \
+             VALUES ('r1', 'p1', 'b1', 'google_play', 'production', 'rolling', 0, 0)",
+        ] {
+            sqlx::query(statement).execute(&pool).await.unwrap();
+        }
+        pool
+    }
+
+    #[tokio::test]
+    async fn a_release_in_progress_blocks_deleting_its_pipeline() {
+        let pool = pool().await;
+
+        let (status, _) = delete_pipeline_rows(&pool, "pl1").await.unwrap_err();
+
+        assert_eq!(status, StatusCode::CONFLICT);
+        let builds: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM builds")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(builds, 1);
+    }
+
+    #[tokio::test]
+    async fn deleting_a_pipeline_returns_its_artifact_files() {
+        let pool = pool().await;
+        sqlx::query("UPDATE releases SET state = 'halted'")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let paths = delete_pipeline_rows(&pool, "pl1").await.unwrap();
+
+        assert_eq!(paths, ["artifacts/b1/app.aab"]);
+        let pipelines: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM pipelines")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(pipelines, 0);
+    }
 }

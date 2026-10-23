@@ -1,4 +1,4 @@
-import { createLazyFileRoute, useNavigate } from '@tanstack/react-router'
+import { createLazyFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { HugeiconsIcon } from '@hugeicons/react'
@@ -12,6 +12,7 @@ import {
   useUpdateNotificationChannel,
 } from '@/hooks/use-notification-channels'
 import { getApiErrorMessage } from '@/lib/api-client/api-error'
+import { fromClientChannel } from '@/lib/notification-channels'
 import { PageMeta } from '@/lib/seo'
 import PageLayout from '@/components/page-layout'
 import PageHeader from '@/components/page-header'
@@ -27,9 +28,15 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
+import { DangerZone } from '@/components/danger-zone'
+import { FormActions } from '@/components/form-actions'
+import { RelativeTime } from '@/components/relative-time'
+import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  SettingsSection,
+  SettingsSurface,
+} from '@/components/settings/settings-section'
 import {
   Empty,
   EmptyDescription,
@@ -44,14 +51,16 @@ import {
   ItemContent,
   ItemDescription,
   ItemGroup,
+  ItemSeparator,
   ItemTitle,
 } from '@/components/ui/item'
 import {
   channelTypeLabel,
+  editNotificationChannelSchema,
   NotificationChannelFormFields,
   notificationChannelDefaults,
   notificationChannelEditValues,
-  notificationChannelSchema,
+  notificationEventLabel,
   type NotificationChannelFormValues,
   updateNotificationChannelRequest,
 } from './-notification-form'
@@ -79,9 +88,13 @@ function NotificationChannelDetailPage() {
   const deleteMutation = useDeleteNotificationChannel()
   const testMutation = useTestNotificationChannel()
   const channel = channelData?.channel
+    ? fromClientChannel(channelData.channel)
+    : undefined
   const deliveries = deliveriesData?.deliveries ?? []
   const form = useForm<NotificationChannelFormValues>({
-    resolver: zodResolver(notificationChannelSchema),
+    resolver: zodResolver(
+      editNotificationChannelSchema(Boolean(channel?.smtp_summary)),
+    ),
     defaultValues: notificationChannelDefaults,
     values: channel ? notificationChannelEditValues(channel) : undefined,
     mode: 'onBlur',
@@ -91,7 +104,10 @@ function NotificationChannelDetailPage() {
     updateMutation.mutate(
       { id: channelId, data: updateNotificationChannelRequest(values) },
       {
-        onSuccess: () => toast.success('Channel updated'),
+        onSuccess: () => {
+          toast.success('Channel updated')
+          form.reset(values)
+        },
         onError: (error) => toast.error(getApiErrorMessage(error, {})),
       },
     )
@@ -121,12 +137,7 @@ function NotificationChannelDetailPage() {
     return (
       <PageLayout width="wide">
         <Skeleton className="h-8 w-48" />
-        <Card size="sm">
-          <CardContent className="space-y-3">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-          </CardContent>
-        </Card>
+        <Skeleton className="h-64 w-full" />
       </PageLayout>
     )
   }
@@ -177,143 +188,162 @@ function NotificationChannelDetailPage() {
         title={channel.name}
         description={`${channelTypeLabel(channel.channel_type)} notification channel`}
         actions={
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={handleTest}
-              disabled={testMutation.isPending}
-            >
-              <HugeiconsIcon icon={TestTube01Icon} />
-              {testMutation.isPending ? 'Sending...' : 'Test'}
-            </Button>
-            <AlertDialog>
-              <AlertDialogTrigger
-                render={
-                  <Button variant="destructive">
-                    <HugeiconsIcon icon={Delete02Icon} />
-                    Delete
-                  </Button>
-                }
-              />
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>
-                    Delete notification channel?
-                  </AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This permanently removes the channel and its delivery
-                    history.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={handleDelete}
-                    disabled={deleteMutation.isPending}
-                  >
-                    {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
+          <Button
+            variant="outline"
+            onClick={handleTest}
+            disabled={testMutation.isPending}
+          >
+            <HugeiconsIcon icon={TestTube01Icon} />
+            {testMutation.isPending ? 'Sending...' : 'Test'}
+          </Button>
         }
       />
 
-      <Card size="sm" aria-labelledby="channel-settings-title">
-        <CardHeader>
-          <CardTitle id="channel-settings-title">Settings</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <Form {...form}>
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          className="flex flex-col gap-4"
+        >
+          <SettingsSection
+            title="Channel"
+            description="Where updates go, and which events send them."
+          >
+            <SettingsSurface className="flex flex-col gap-4">
               <NotificationChannelFormFields channel={channel} form={form} />
-              <Button type="submit" disabled={updateMutation.isPending}>
-                {updateMutation.isPending ? 'Saving...' : 'Save changes'}
-              </Button>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
+            </SettingsSurface>
+          </SettingsSection>
+          <FormActions
+            disabled={!form.formState.isDirty}
+            disabledReason="No changes to save"
+            isPending={updateMutation.isPending}
+            submitLabel="Save changes"
+          />
+        </form>
+      </Form>
 
-      <Card size="sm" aria-labelledby="delivery-history-title">
-        <CardHeader>
-          <CardTitle id="delivery-history-title">Delivery history</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <SettingsSection
+        title="Delivery history"
+        description="The most recent attempts to reach this channel."
+      >
+        <SettingsSurface inset={false}>
           {deliveriesLoading ? (
-            <div className="space-y-2" aria-label="Loading delivery history">
+            <div
+              className="space-y-2 p-4 sm:p-5"
+              aria-label="Loading delivery history"
+            >
               <Skeleton className="h-12 w-full" />
               <Skeleton className="h-12 w-full" />
             </div>
           ) : deliveriesError ? (
-            <Alert variant="destructive">
-              <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <span>
-                  Failed to load delivery history: {deliveriesError.message}
-                </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void refetchDeliveries()}
-                >
-                  Retry
-                </Button>
-              </AlertDescription>
-            </Alert>
+            <div className="p-4 sm:p-5">
+              <Alert variant="destructive">
+                <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <span>
+                    Failed to load delivery history: {deliveriesError.message}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void refetchDeliveries()}
+                  >
+                    Retry
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            </div>
           ) : deliveries.length === 0 ? (
-            <Empty className="py-4">
+            <Empty className="py-8">
               <EmptyHeader>
                 <EmptyTitle>No deliveries yet</EmptyTitle>
                 <EmptyDescription>
                   Delivery attempts will appear here after this channel is
-                  triggered.
+                  triggered. Use Test to send one now.
                 </EmptyDescription>
               </EmptyHeader>
             </Empty>
           ) : (
             <ItemGroup>
-              {deliveries.map((delivery) => (
-                <Item key={delivery.id} variant="outline" size="sm">
-                  <ItemContent>
-                    <ItemTitle>
-                      <Badge
-                        variant={
-                          delivery.status === 'delivered'
-                            ? 'secondary'
-                            : delivery.status === 'failed'
-                              ? 'destructive'
-                              : 'outline'
-                        }
-                      >
-                        {delivery.status}
-                      </Badge>
-                      <span className="text-muted-foreground">
-                        {delivery.event_type}
-                      </span>
-                    </ItemTitle>
-                    {delivery.last_error ? (
-                      <ItemDescription className="text-destructive">
-                        {delivery.last_error}
+              {deliveries.map((delivery, index) => (
+                <div key={delivery.id}>
+                  {index > 0 ? <ItemSeparator /> : null}
+                  <Item size="sm">
+                    <ItemContent className="min-w-0">
+                      <ItemTitle>
+                        {notificationEventLabel(delivery.event_type)}
+                      </ItemTitle>
+                      <ItemDescription>
+                        <RelativeTime at={delivery.created_at} />
+                        {delivery.attempt_count > 1
+                          ? ` · ${delivery.attempt_count} attempts`
+                          : ''}
+                        {delivery.build_id ? (
+                          <>
+                            {' · '}
+                            <Link
+                              to="/builds/$buildId"
+                              params={{ buildId: delivery.build_id }}
+                              className="underline underline-offset-4"
+                            >
+                              View build
+                            </Link>
+                          </>
+                        ) : null}
                       </ItemDescription>
-                    ) : null}
-                  </ItemContent>
-                  <ItemActions className="text-xs text-muted-foreground">
-                    <time
-                      dateTime={new Date(
-                        delivery.created_at * 1000,
-                      ).toISOString()}
-                    >
-                      {new Date(delivery.created_at * 1000).toLocaleString()}
-                    </time>
-                  </ItemActions>
-                </Item>
+                      {delivery.last_error ? (
+                        <ItemDescription className="font-mono text-xs break-words">
+                          {delivery.last_error}
+                        </ItemDescription>
+                      ) : null}
+                    </ItemContent>
+                    <ItemActions>
+                      <StatusBadge kind="delivery" value={delivery.status} />
+                    </ItemActions>
+                  </Item>
+                </div>
               ))}
             </ItemGroup>
           )}
-        </CardContent>
-      </Card>
+        </SettingsSurface>
+      </SettingsSection>
+
+      <DangerZone
+        title="Delete this channel"
+        description={`Permanently removes "${channel.name}" and its delivery history. Pipelines that notified it stop sending.`}
+        action={
+          <AlertDialog>
+            <AlertDialogTrigger
+              render={
+                <Button variant="destructive">
+                  <HugeiconsIcon icon={Delete02Icon} />
+                  Delete channel
+                </Button>
+              }
+            />
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  Delete notification channel?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  This permanently removes "{channel.name}" and its delivery
+                  history. Pipelines that notified it stop sending.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  variant="destructive"
+                  onClick={handleDelete}
+                  disabled={deleteMutation.isPending}
+                >
+                  {deleteMutation.isPending ? 'Deleting...' : 'Delete channel'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        }
+      />
     </PageLayout>
   )
 }

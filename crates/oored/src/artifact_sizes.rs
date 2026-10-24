@@ -6,7 +6,9 @@ use std::sync::Arc;
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
-use oore_contract::{ApiError, ArtifactSizeComparison, BuildSizeBaseline, BuildSizeReport};
+use oore_contract::{
+    ApiError, ArtifactSizeComparison, BuildSizeBaseline, BuildSizeReport, SizeBudget,
+};
 use sqlx::{Row, SqlitePool};
 use tracing::{error, warn};
 
@@ -159,7 +161,7 @@ pub(crate) async fn load_size_report(
     build_id: &str,
 ) -> Result<Option<BuildSizeReport>, sqlx::Error> {
     let Some(build) = sqlx::query(
-        "SELECT b.pipeline_id, b.build_number, \
+        "SELECT b.pipeline_id, b.build_number, b.commit_sha, \
                 p.default_branch AS project_default_branch, \
                 r.default_branch AS repository_default_branch \
          FROM builds b \
@@ -194,12 +196,20 @@ pub(crate) async fn load_size_report(
              WHERE b.pipeline_id = ?1 AND b.branch = ?2 AND b.build_number < ?3 \
                AND (b.status = 'succeeded' OR (b.status = 'expired' AND b.expired_from = 'succeeded')) \
                AND EXISTS (SELECT 1 FROM build_artifact_sizes s WHERE s.build_id = b.id) \
+               AND (?5 IS NULL OR b.commit_sha IS NOT ?5) \
              ORDER BY b.build_number DESC LIMIT ?4",
         )
         .bind(build.get::<String, _>("pipeline_id"))
         .bind(branch)
         .bind(build.get::<i64, _>("build_number"))
         .bind(MAX_BASELINE_CANDIDATES)
+        // A rerun of the same commit, for example on the default branch, is
+        // the same code and would compare with itself.
+        .bind(
+            build
+                .get::<Option<String>, _>("commit_sha")
+                .filter(|sha| !sha.is_empty()),
+        )
         .fetch_all(pool)
         .await?;
         // A pull request whose head branch has the base branch's name, for
@@ -230,10 +240,77 @@ pub(crate) async fn load_size_report(
 
 /// The kind of file, so `app-1.2.0.apk` can match `app-1.3.0.apk`.
 fn file_kind(row: &SizeRow) -> String {
-    match row.name.rsplit_once('.') {
+    artifact_kind(&row.name, &row.artifact_type)
+}
+
+/// An artifact's kind: its lowercase file extension, or its type when the
+/// name has none. Size budgets name kinds the same way.
+pub(crate) fn artifact_kind(name: &str, artifact_type: &str) -> String {
+    match name.rsplit_once('.') {
         Some((_, extension)) if !extension.is_empty() => extension.to_ascii_lowercase(),
-        _ => row.artifact_type.clone(),
+        _ => artifact_type.to_ascii_lowercase(),
     }
+}
+
+/// A size budget limit an artifact went over: a maximum size, or a maximum
+/// increase in bytes or percent.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum BudgetLimit {
+    Bytes(i64),
+    IncreaseBytes(i64),
+    IncreasePercent(f64),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct BudgetViolation {
+    pub name: String,
+    pub artifact_type: String,
+    pub size_bytes: i64,
+    /// Change from the baseline artifact and that artifact's size.
+    pub change: Option<(i64, i64)>,
+    pub limit: BudgetLimit,
+}
+
+/// The limits each artifact goes over. Increase limits need a baseline
+/// artifact to compare with, so without one only `max_bytes` applies.
+pub(crate) fn check_budget(report: &BuildSizeReport, budget: &SizeBudget) -> Vec<BudgetViolation> {
+    let mut violations = Vec::new();
+    for artifact in &report.artifacts {
+        let kind = artifact_kind(&artifact.name, &artifact.artifact_type);
+        let Some(rule) = budget.rules.iter().find(|rule| rule.kind == kind) else {
+            continue;
+        };
+        let change = artifact.delta_bytes.zip(artifact.baseline_size_bytes);
+        let mut over = |limit| {
+            violations.push(BudgetViolation {
+                name: artifact.name.clone(),
+                artifact_type: artifact.artifact_type.clone(),
+                size_bytes: artifact.size_bytes,
+                change,
+                limit,
+            });
+        };
+        if let Some(max) = rule.max_bytes
+            && artifact.size_bytes > max
+        {
+            over(BudgetLimit::Bytes(max));
+        }
+        if let Some((delta, _)) = change
+            && let Some(max) = rule.max_increase_bytes
+            && delta > max
+        {
+            over(BudgetLimit::IncreaseBytes(max));
+        }
+        // Any growth from an empty baseline is beyond every percent limit.
+        if let Some((delta, baseline)) = change
+            && let Some(max) = rule.max_increase_percent
+            && delta > 0
+            && (baseline <= 0 || delta as f64 / baseline as f64 * 100.0 > max)
+        {
+            over(BudgetLimit::IncreasePercent(max));
+        }
+    }
+    violations
 }
 
 /// Pair each artifact with a baseline artifact: the same name first, then by
@@ -308,6 +385,11 @@ pub(crate) fn format_size(bytes: i64) -> String {
 
 /// `+1.2 MB (+5.1%)`, `-300 B (-0.1%)` or `No change`.
 pub(crate) fn format_delta(delta: i64, baseline: i64) -> String {
+    format_delta_with(delta, baseline, 1)
+}
+
+/// [`format_delta`] with the percent to `decimals` places.
+pub(crate) fn format_delta_with(delta: i64, baseline: i64, decimals: usize) -> String {
     if delta == 0 {
         return "No change".to_string();
     }
@@ -315,7 +397,7 @@ pub(crate) fn format_delta(delta: i64, baseline: i64) -> String {
     let size = format_size(delta);
     if baseline > 0 {
         let percent = delta as f64 / baseline as f64 * 100.0;
-        format!("{sign}{size} ({percent:+.1}%)")
+        format!("{sign}{size} ({percent:+.decimals$}%)")
     } else {
         format!("{sign}{size}")
     }

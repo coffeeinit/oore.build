@@ -10,9 +10,9 @@ use oore_contract::{
     ExportPipelineYamlResponse, ListPipelinesResponse, MAX_BUILD_TIMEOUT_MINUTES,
     MAX_PLAN_REPOSITORY_YAML_BYTES, OkResponse, Pipeline, PipelineDetailResponse,
     PipelineExecutionConfig, PipelinePlanPreview, PlanPipelineRequest, PlanPipelineResponse,
-    PlanRequest, RepositoryConfig, TriggerConfig, UpdatePipelineRequest, ValidatePipelineRequest,
-    ValidatePipelineResponse, is_valid_pipeline_env_key, is_valid_workflow_name,
-    normalize_runner_labels, parse_repository_config,
+    PlanRequest, RepositoryConfig, SizeBudget, TriggerConfig, UpdatePipelineRequest,
+    ValidatePipelineRequest, ValidatePipelineResponse, is_valid_pipeline_env_key,
+    is_valid_workflow_name, normalize_runner_labels, parse_repository_config,
     pipeline_config::select_v1_platforms,
     pipeline_export::{FormSettings, export_form_settings},
     plan_execution_config, secret_expression_errors, validate_artifact_pattern,
@@ -504,6 +504,11 @@ fn row_to_pipeline(row: &sqlx::sqlite::SqliteRow) -> Pipeline {
         .ok()
         .and_then(|raw| serde_json::from_str(&raw).ok())
         .unwrap_or_default();
+    let size_budget: SizeBudget = row
+        .try_get::<String, _>("size_budget")
+        .ok()
+        .and_then(|raw| serde_json::from_str(&raw).ok())
+        .unwrap_or_default();
 
     Pipeline {
         id: row.get("id"),
@@ -516,6 +521,7 @@ fn row_to_pipeline(row: &sqlx::sqlite::SqliteRow) -> Pipeline {
         concurrency,
         timeout_minutes,
         approval,
+        size_budget,
         workflow: row.try_get("workflow").ok().flatten(),
         enabled: enabled_int != 0,
         created_at: row.get("created_at"),
@@ -680,9 +686,11 @@ pub async fn create_pipeline(
 
     let timeout_minutes = req.timeout_minutes.unwrap_or(DEFAULT_BUILD_TIMEOUT_MINUTES);
     let approval = req.approval.unwrap_or_default();
+    let size_budget = req.size_budget.unwrap_or_default();
     let gate_errors = [
         validate_timeout_minutes(timeout_minutes),
         validate_approval_policy(&approval),
+        size_budget.validate(),
     ]
     .concat();
     if !gate_errors.is_empty() {
@@ -717,8 +725,8 @@ pub async fn create_pipeline(
     let execution_config_json = serde_json::to_string(&execution_config).unwrap_or_default();
 
     sqlx::query(
-        "INSERT INTO pipelines (id, project_id, name, config_path, config_path_explicit, execution_config, trigger_config, concurrency, timeout_minutes, approval_policy, workflow, enabled, created_at, updated_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?10, ?11, ?12, 1, ?9, ?9)",
+        "INSERT INTO pipelines (id, project_id, name, config_path, config_path_explicit, execution_config, trigger_config, concurrency, timeout_minutes, approval_policy, workflow, size_budget, enabled, created_at, updated_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?10, ?11, ?12, ?13, 1, ?9, ?9)",
     )
     .bind(&pipeline_id)
     .bind(&project_id)
@@ -732,6 +740,7 @@ pub async fn create_pipeline(
     .bind(timeout_minutes)
     .bind(serde_json::to_string(&approval).unwrap_or_default())
     .bind(&workflow)
+    .bind(serde_json::to_string(&size_budget).unwrap_or_default())
     .execute(&pool)
     .await
     .map_err(|e| {
@@ -768,6 +777,7 @@ pub async fn create_pipeline(
         concurrency,
         timeout_minutes,
         approval,
+        size_budget,
         workflow,
         enabled: true,
         created_at: now,
@@ -1114,6 +1124,8 @@ pub async fn update_pipeline(
         pipeline.approval = approval;
     }
 
+    pipeline.size_budget = updated_size_budget(pipeline.size_budget, req.size_budget)?;
+
     if let Some(workflow) = req.workflow {
         pipeline.workflow = match workflow.as_deref() {
             Some(name) => {
@@ -1142,7 +1154,7 @@ pub async fn update_pipeline(
     sqlx::query(
         "UPDATE pipelines \
          SET name = ?1, config_path = ?2, config_path_explicit = ?3, execution_config = ?4, trigger_config = ?5, concurrency = ?6, enabled = ?7, updated_at = ?8, \
-             timeout_minutes = ?10, approval_policy = ?11, workflow = ?12 \
+             timeout_minutes = ?10, approval_policy = ?11, workflow = ?12, size_budget = ?13 \
          WHERE id = ?9",
     )
     .bind(&pipeline.name)
@@ -1157,6 +1169,7 @@ pub async fn update_pipeline(
     .bind(pipeline.timeout_minutes)
     .bind(serde_json::to_string(&pipeline.approval).unwrap_or_default())
     .bind(&pipeline.workflow)
+    .bind(serde_json::to_string(&pipeline.size_budget).unwrap_or_default())
     .execute(pool)
     .await
     .map_err(|e| {
@@ -1421,6 +1434,26 @@ async fn delete_pipeline_rows(
     })
 }
 
+/// The budget after an update: the requested one when valid, otherwise the
+/// current one. Leaving the field out or sending `null` keeps it.
+fn updated_size_budget(
+    current: SizeBudget,
+    requested: Option<SizeBudget>,
+) -> Result<SizeBudget, (StatusCode, Json<ApiError>)> {
+    let Some(requested) = requested else {
+        return Ok(current);
+    };
+    let errors = requested.validate();
+    if !errors.is_empty() {
+        return Err(api_err(
+            StatusCode::BAD_REQUEST,
+            "invalid_input",
+            errors.join("; "),
+        ));
+    }
+    Ok(requested)
+}
+
 /// `POST /v1/pipelines/validate` — dry-run validation of pipeline config.
 pub async fn validate_pipeline(
     State(state): State<Arc<AppState>>,
@@ -1428,7 +1461,10 @@ pub async fn validate_pipeline(
     Json(req): Json<ValidatePipelineRequest>,
 ) -> ApiResult<ValidatePipelineResponse> {
     check_permission(&state.enforcer, &auth.0.role, "pipelines", "read").await?;
+    Ok(Json(validate_request(&req)))
+}
 
+fn validate_request(req: &ValidatePipelineRequest) -> ValidatePipelineResponse {
     let mut errors = Vec::new();
     let config_path_explicit = req.config_path_explicit.unwrap_or(false);
 
@@ -1446,6 +1482,10 @@ pub async fn validate_pipeline(
 
     if let Some(ref approval) = req.approval {
         errors.extend(validate_approval_policy(approval));
+    }
+
+    if let Some(ref size_budget) = req.size_budget {
+        errors.extend(size_budget.validate());
     }
 
     if let Some(ref path) = req.config_path {
@@ -1483,7 +1523,7 @@ pub async fn validate_pipeline(
 
     let valid = errors.is_empty();
 
-    Ok(Json(ValidatePipelineResponse { valid, errors }))
+    ValidatePipelineResponse { valid, errors }
 }
 
 /// `POST /v1/pipelines/plan` — the steps a build would run, without saving.
@@ -2166,6 +2206,64 @@ mod export_tests {
             "{:?}",
             response.errors
         );
+    }
+}
+
+#[cfg(test)]
+mod size_budget_tests {
+    use super::*;
+
+    fn budget(raw: &str) -> SizeBudget {
+        serde_json::from_str(raw).unwrap()
+    }
+
+    #[test]
+    fn an_update_without_a_size_budget_keeps_the_current_one() {
+        let current = budget(r#"{"mode":"fail","rules":[{"kind":"aab","max_bytes":10}]}"#);
+        for raw in [r#"{"size_budget":null}"#, "{}"] {
+            let req: UpdatePipelineRequest = serde_json::from_str(raw).unwrap();
+            assert_eq!(
+                updated_size_budget(current.clone(), req.size_budget).unwrap(),
+                current,
+                "{raw}"
+            );
+        }
+
+        let req: UpdatePipelineRequest =
+            serde_json::from_str(r#"{"size_budget":{"rules":[]}}"#).unwrap();
+        assert_eq!(
+            updated_size_budget(current.clone(), req.size_budget).unwrap(),
+            SizeBudget::default()
+        );
+        let req: UpdatePipelineRequest =
+            serde_json::from_str(r#"{"size_budget":{"rules":[{"kind":"apk"}]}}"#).unwrap();
+        let (status, body) = updated_size_budget(current, req.size_budget).unwrap_err();
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert!(
+            body.0.error.contains("'apk' needs a limit"),
+            "{}",
+            body.0.error
+        );
+    }
+
+    #[test]
+    fn validate_reports_size_budget_errors() {
+        let req: ValidatePipelineRequest = serde_json::from_str(
+            r#"{"size_budget":{"mode":"fail","rules":[{"kind":"aab","max_bytes":0}]}}"#,
+        )
+        .unwrap();
+        let response = validate_request(&req);
+        assert!(!response.valid);
+        assert_eq!(
+            response.errors,
+            ["size_budget max_bytes for 'aab' must be greater than 0"]
+        );
+
+        let req: ValidatePipelineRequest = serde_json::from_str(
+            r#"{"size_budget":{"mode":"fail","rules":[{"kind":"aab","max_bytes":1}]}}"#,
+        )
+        .unwrap();
+        assert!(validate_request(&req).valid);
     }
 }
 

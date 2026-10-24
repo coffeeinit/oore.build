@@ -8,6 +8,7 @@ import {
 import type {
   CreatePipelineRequest,
   ExportPipelineYamlRequest,
+  ImportPipelineYamlRequest,
   PlanPipelineRequest,
   RegisterIosDeviceRequest,
   UpdatePipelineAndroidSigningRequest,
@@ -19,6 +20,7 @@ import {
   createPipeline,
   deletePipeline,
   exportPipelineYaml,
+  importPipelineYaml,
   planPipeline,
   updatePipeline,
   validatePipeline,
@@ -316,6 +318,31 @@ export function usePipelineYamlExport(body: ExportPipelineYamlRequest | null) {
     enabled: !!baseUrl && !!token && body !== null,
     placeholderData: keepPreviousData,
     staleTime: Infinity,
+  })
+}
+
+/**
+ * An edited `.oore.yaml` read back into form settings, from the daemon.
+ * Pass `null` to pause. While a new answer loads the previous one stays as
+ * placeholder data, which callers check before applying it.
+ */
+export function usePipelineYamlImport(body: ImportPipelineYamlRequest | null) {
+  const { baseUrl, client, instanceId, token } = useApiContext()
+
+  return useQuery({
+    queryKey: scopeOoreQueryKey(instanceId, ['importPipelineYaml', body]),
+    queryFn: ({ signal }) =>
+      // SAFETY: the query is disabled while `body` is null.
+      importPipelineYaml({
+        body: body as ImportPipelineYamlRequest,
+        client,
+        signal,
+      }),
+    enabled: !!baseUrl && !!token && body !== null,
+    placeholderData: keepPreviousData,
+    staleTime: Infinity,
+    // Keys carry the whole file, so old answers are dropped soon.
+    gcTime: 30_000,
   })
 }
 

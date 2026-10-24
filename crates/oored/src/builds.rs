@@ -2097,7 +2097,8 @@ pub(crate) async fn queue_rerun(
     // Fetch source build
     let source_row = sqlx::query(
         "SELECT id, project_id, pipeline_id, build_number, status, \
-         trigger_ref, commit_sha, branch, changelog, config_snapshot, approval_requested_at \
+         trigger_ref, commit_sha, branch, changelog, config_snapshot, approval_requested_at, \
+         step_results \
          FROM builds WHERE id = ?1",
     )
     .bind(&build_id)
@@ -2278,11 +2279,12 @@ pub(crate) async fn queue_rerun(
             "timeout_secs".to_string(),
             serde_json::json!(i64::from(timeout_minutes) * 60),
         );
-        // A full re-run of a retry builds everything again.
-        snapshot.remove("retry_steps");
-        if let Some(steps) = &retry_steps {
-            snapshot.insert("retry_steps".to_string(), serde_json::json!(steps));
-        }
+        let step_results: Option<String> = source_row.get("step_results");
+        crate::step_retry::set_retry_snapshot(
+            snapshot,
+            retry_steps.as_deref(),
+            step_results.as_deref(),
+        );
     }
     let event_type = if retry_steps.is_some() {
         "retry"
